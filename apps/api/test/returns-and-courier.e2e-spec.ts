@@ -152,8 +152,8 @@ describe('Step 4 & 5: Returns & Exchanges, Courier & Settlement (e2e)', () => {
 
     // 5. Create Test Products with size variations
     const prodRes = await pool.query(
-      `INSERT INTO products (name, code, cost_price, selling_price, is_active)
-       VALUES ('Premium Linen Shirt', 'SHIRT-LINEN', 600.00, 1400.00, true)
+      `INSERT INTO products (name, code, is_active)
+       VALUES ('Premium Linen Shirt', 'SHIRT-LINEN', true)
        RETURNING id`
     );
     const prodId = prodRes.rows[0].id;

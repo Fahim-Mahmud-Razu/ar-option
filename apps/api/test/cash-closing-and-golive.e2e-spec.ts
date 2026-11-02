@@ -146,8 +146,8 @@ describe('Step 6: Go-Live & Daily Cash Drawer Reconciliation (e2e)', () => {
 
     // Setup Product for Pilot Shop
     const prodRes = await pool.query(`
-      INSERT INTO products (name, code, cost_price, selling_price, is_active)
-      VALUES ('Pilot Oxford Shirt', 'SHIRT-PIL-01', 500.00, 1000.00, true)
+      INSERT INTO products (name, code, is_active)
+      VALUES ('Pilot Oxford Shirt', 'SHIRT-PIL-01', true)
       RETURNING id
     `);
     const varRes = await pool.query(`

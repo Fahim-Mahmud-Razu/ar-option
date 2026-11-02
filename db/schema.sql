@@ -105,16 +105,11 @@ CREATE TABLE IF NOT EXISTS products (
   id SERIAL PRIMARY KEY,
   name VARCHAR(150) NOT NULL,
   code VARCHAR(50) NOT NULL UNIQUE,
-  category_name VARCHAR(100),
-  brand_name VARCHAR(100),
   category_id INTEGER REFERENCES categories(id),
   sub_category_id INTEGER REFERENCES categories(id),
   brand_id INTEGER REFERENCES brands(id),
   unit VARCHAR(20) NOT NULL DEFAULT 'pcs',
   alert_quantity INTEGER NOT NULL DEFAULT 0,
-  -- Old product-level prices stay until migration 011. Each size has its own price now.
-  cost_price NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (cost_price >= 0),
-  selling_price NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (selling_price >= 0),
   is_active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP

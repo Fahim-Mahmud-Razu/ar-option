@@ -55,6 +55,33 @@ test.describe('App Shell Smoke Test', () => {
         body: JSON.stringify({ items: [], totalDebit: 0, totalCredit: 0, isBalanced: true }),
       });
     });
+    await page.route('**/reports/dashboard-kpis*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          total_shops: 2,
+          total_sales: 0,
+          stock_value: 0,
+          pending_transfers: 0,
+          is_trial_balance_balanced: true,
+        }),
+      });
+    });
+    await page.route('**/pos/sales*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    });
+    await page.route('**/contacts*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    });
     await page.route('**/reports/stock-by-shop', async (route) => {
       await route.fulfill({
         status: 200,

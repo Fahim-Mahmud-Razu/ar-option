@@ -139,6 +139,7 @@ export const MultiPayModal: React.FC<MultiPayModalProps> = ({
           {rows.map((row, idx) => (
             <div
               key={row.id}
+              data-testid="multipay-row"
               className="p-3 rounded-xl border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface space-y-2"
             >
               <div className="flex items-center justify-between gap-2">

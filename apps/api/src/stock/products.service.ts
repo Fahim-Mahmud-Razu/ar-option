@@ -151,9 +151,8 @@ export class ProductsService {
     }
 
     const prodRes = await client.query(
-      `INSERT INTO products (name, code, category_id, sub_category_id, brand_id, unit, alert_quantity,
-                             cost_price, selling_price, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)
+      `INSERT INTO products (name, code, category_id, sub_category_id, brand_id, unit, alert_quantity, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, true)
        RETURNING id`,
       [
         dto.name.trim(),
@@ -163,8 +162,6 @@ export class ProductsService {
         brandId,
         (dto.unit || 'pcs').trim(),
         Math.max(0, Math.floor(Number(dto.alert_quantity || 0))),
-        defaultCost,
-        defaultSelling,
       ]
     );
     const productId: number = prodRes.rows[0].id;
@@ -435,14 +432,6 @@ export class ProductsService {
         client
       );
     }
-
-    // Keep the old product-level prices equal to the first size until migration 011 drops them.
-    await client.query(
-      `UPDATE products p SET cost_price = f.cost_price, selling_price = f.selling_price
-       FROM (SELECT cost_price, selling_price FROM product_variations WHERE product_id = $1 ORDER BY id LIMIT 1) f
-       WHERE p.id = $1`,
-      [id]
-    );
   }
 
   async addInitialStock(
