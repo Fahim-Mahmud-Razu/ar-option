@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.dev.vars
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+.neon

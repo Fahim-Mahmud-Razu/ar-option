@@ -1,0 +1,24 @@
+{
+  "name": "ar-option-root",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=packages/shared-types && npm run build --workspace=apps/api && npm run build --workspace=apps/web",
+    "db:migrate": "node db/migrate.js",
+    "test:docker-check": "node -e 'const url = new URL(process.env.DATABASE_URL || \"\"); if (url.hostname !== \"localhost\" && url.hostname !== \"127.0.0.1\") { console.error(\"ABORT: DATABASE_URL must point to localhost or 127.0.0.1 for tests. Aborting to protect real data.\"); process.exit(1); }'",
+    "test": "npm run test --workspace=apps/api && npm run test --workspace=apps/web"
+  },
+  "dependencies": {
+    "@neon/config": "^1.10.0",
+    "@neon/env": "^1.6.8",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.11.10",
+    "typescript": "^5.7.0"
+  }
+}
