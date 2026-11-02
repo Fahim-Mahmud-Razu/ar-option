@@ -26,7 +26,9 @@ export type PermissionKey =
   | 'till.setup'
   | 'till.cash_in'
   | 'till.cash_out'
-  | 'till.close';
+  | 'till.close'
+  | 'contacts.view'
+  | 'contacts.manage';
 
 export interface Shop {
   id: number;
@@ -221,6 +223,8 @@ export interface StockByShopGridItem {
   sku: string;
   cost_price: number;
   selling_price: number;
+  category_name?: string;
+  brand_name?: string;
   stocks: {
     location_id: number;
     location_name: string;
@@ -285,6 +289,40 @@ export interface SaleItem {
   total: number;
 }
 
+export interface SalePayment {
+  id: number;
+  sale_id: number;
+  payment_account_id: number;
+  payment_account_name?: string;
+  payment_method: string;
+  amount: number;
+  reference_note?: string;
+  created_at: string;
+}
+
+export interface SalePaymentDto {
+  payment_account_id: number;
+  amount: number;
+  reference_note?: string;
+}
+
+export interface Contact {
+  id: number;
+  name: string;
+  phone: string;
+  email?: string;
+  address?: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface CreateContactDto {
+  name: string;
+  phone: string;
+  email?: string;
+  address?: string;
+}
+
 export interface Sale {
   id: number;
   invoice_number: string;
@@ -292,6 +330,7 @@ export interface Sale {
   shop_name: string;
   shop_code: string;
   client_ref?: string;
+  customer_id?: number | null;
   customer_name?: string;
   customer_phone?: string;
   sale_type: 'counter' | 'courier';
@@ -305,6 +344,7 @@ export interface Sale {
   created_by?: number;
   created_at: string;
   items?: SaleItem[];
+  payments?: SalePayment[];
 }
 
 export interface CreateSaleItemDto {
@@ -316,11 +356,13 @@ export interface CreateSaleItemDto {
 
 export interface CreateSaleDto {
   client_ref?: string;
+  customer_id?: number | null;
   customer_name?: string;
   customer_phone?: string;
   sale_type?: 'counter' | 'courier';
   discount_amount?: number;
-  payment_account_id: number;
+  payment_account_id?: number;
+  payments?: SalePaymentDto[];
   items: CreateSaleItemDto[];
 }
 

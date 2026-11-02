@@ -108,9 +108,13 @@ export class ReportsService {
         pv.selling_price,
         pv.id AS variation_id,
         pv.size,
-        pv.sku
+        pv.sku,
+        c.name AS category_name,
+        b.name AS brand_name
       FROM product_variations pv
       JOIN products p ON pv.product_id = p.id
+      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN brands b ON p.brand_id = b.id
       WHERE p.is_active = true AND pv.is_active = true
       ORDER BY p.name ASC, pv.id ASC
     `);
@@ -134,6 +138,8 @@ export class ReportsService {
       sku: row.sku,
       cost_price: Number(row.cost_price),
       selling_price: Number(row.selling_price),
+      category_name: row.category_name || undefined,
+      brand_name: row.brand_name || undefined,
       stocks: locations.map((loc) => ({
         location_id: loc.id,
         location_name: loc.name,

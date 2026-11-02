@@ -12,6 +12,7 @@ import { ReturnsModule } from './returns/returns.module';
 import { CourierModule } from './courier/courier.module';
 import { CashClosingModule } from './cash-closing/cash-closing.module';
 import { TillModule } from './till/till.module';
+import { ContactsModule } from './contacts/contacts.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { TillModule } from './till/till.module';
     CourierModule,
     CashClosingModule,
     TillModule,
+    ContactsModule,
   ],
   controllers: [HealthController],
 })

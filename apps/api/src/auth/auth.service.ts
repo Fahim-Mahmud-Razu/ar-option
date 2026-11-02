@@ -42,6 +42,8 @@ const ALL_PERMISSIONS: PermissionKey[] = [
   'till.cash_in',
   'till.cash_out',
   'till.close',
+  'contacts.view',
+  'contacts.manage',
 ];
 
 function getJwtSecret(): string {

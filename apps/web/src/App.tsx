@@ -368,7 +368,9 @@ const AppShell: React.FC<AppShellProps> = ({ session, onSignOut }) => {
             <PosView
               activeShop={activeShop}
               apiUrl={apiUrl}
+              permissions={permissions}
               onExit={() => setActiveTab('dashboard')}
+              onOpenTill={() => setActiveTab('cash-closing')}
               onSaleCompleted={() => {
                 fetchTrialBalance(activeShop?.id);
                 fetchDashboardKpis(activeShop?.id);

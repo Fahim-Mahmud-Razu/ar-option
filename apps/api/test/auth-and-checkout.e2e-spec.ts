@@ -483,4 +483,143 @@ describe('Auth & Checkout Safety (e2e)', () => {
       expect(res.statusCode).toBe(400);
     });
   });
+
+  describe('MultiPay, Contacts & Fair-Share Returns', () => {
+    let cardAccountId: number;
+    let contactId: number;
+
+    beforeAll(async () => {
+      const cardRes = await pool.query(
+        `INSERT INTO accounts (code, name, type, location_id, is_active, payment_method)
+         VALUES ('CARD_MIR_AC', 'Card Terminal', 'asset', $1, true, 'card')
+         ON CONFLICT (code) DO UPDATE SET is_active = true, location_id = $1
+         RETURNING id`,
+        [shopId]
+      );
+      cardAccountId = cardRes.rows[0].id;
+    });
+
+    it('creates and searches customer contacts', async () => {
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/contacts',
+        headers: { authorization: `Bearer ${cashierToken}` },
+        payload: {
+          name: 'Nafis Iqbal',
+          phone: '01899112233',
+          address: 'Mirpur DOHS, Dhaka',
+        },
+      });
+      expect(createRes.statusCode).toBe(201);
+      const contact = JSON.parse(createRes.payload);
+      expect(contact.name).toBe('Nafis Iqbal');
+      contactId = contact.id;
+
+      const searchRes = await app.inject({
+        method: 'GET',
+        url: '/contacts?query=01899',
+        headers: { authorization: `Bearer ${cashierToken}` },
+      });
+      expect(searchRes.statusCode).toBe(200);
+      const list = JSON.parse(searchRes.payload);
+      expect(list.some((c: any) => c.phone === '01899112233')).toBe(true);
+    });
+
+    it('completes a MultiPay sale with split payments and links customer', async () => {
+      // shirt selling_price = 1000, quantity = 1 -> total = 1000
+      const res = await app.inject({
+        method: 'POST',
+        url: '/pos/sales',
+        headers: { authorization: `Bearer ${adminToken}`, 'x-shop-id': String(shopId) },
+        payload: {
+          client_ref: 'multipay-sale-01',
+          customer_id: contactId,
+          items: [{ product_variation_id: shirtVarId, quantity: 1 }],
+          payments: [
+            { payment_account_id: cashAccountId, amount: 600 },
+            { payment_account_id: cardAccountId, amount: 400, reference_note: 'TX-CARD-99' },
+          ],
+        },
+      });
+      expect(res.statusCode).toBe(201);
+      const sale = JSON.parse(res.payload);
+      expect(sale.total_amount).toBe(1000);
+      expect(sale.customer_name).toBe('Nafis Iqbal');
+      expect(sale.customer_phone).toBe('01899112233');
+
+      // Verify getSaleById returns payments list
+      const fetchRes = await app.inject({
+        method: 'GET',
+        url: `/pos/sales/${sale.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(fetchRes.statusCode).toBe(200);
+      const fetched = JSON.parse(fetchRes.payload);
+      expect(fetched.payments).toHaveLength(2);
+      expect(fetched.payments[0].amount).toBe(600);
+      expect(fetched.payments[1].amount).toBe(400);
+      expect(fetched.payments[1].reference_note).toBe('TX-CARD-99');
+    });
+
+    it('rejects MultiPay where payments do not add up to total', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/pos/sales',
+        headers: { authorization: `Bearer ${adminToken}`, 'x-shop-id': String(shopId) },
+        payload: {
+          client_ref: 'multipay-mismatch',
+          items: [{ product_variation_id: shirtVarId, quantity: 1 }],
+          payments: [
+            { payment_account_id: cashAccountId, amount: 500 },
+            { payment_account_id: cardAccountId, amount: 400 },
+          ], // sum = 900, required = 1000
+        },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.payload).message).toContain('Payments sum');
+    });
+
+    it('refunds a fair share of cart discount on linked returns', async () => {
+      // 2 shirts @ 1000 = 2000, discount 200 = 1800 total (10% discount)
+      const saleRes = await app.inject({
+        method: 'POST',
+        url: '/pos/sales',
+        headers: { authorization: `Bearer ${adminToken}`, 'x-shop-id': String(shopId) },
+        payload: {
+          client_ref: 'sale-discounted-for-return',
+          items: [{ product_variation_id: shirtVarId, quantity: 2 }],
+          discount_amount: 200,
+          payment_account_id: cashAccountId,
+        },
+      });
+      expect(saleRes.statusCode).toBe(201);
+      const sale = JSON.parse(saleRes.payload);
+      expect(sale.total_amount).toBe(1800);
+
+      // Return 1 shirt -> fair share refund should be 900 (1000 - 10%), not 1000
+      const retRes = await app.inject({
+        method: 'POST',
+        url: '/returns',
+        headers: { authorization: `Bearer ${adminToken}`, 'x-shop-id': String(shopId) },
+        payload: {
+          sale_id: sale.id,
+          reason: 'Fair share discount check',
+          action_type: 'refunded',
+          payment_account_id: cashAccountId,
+          items: [
+            {
+              direction: 'in',
+              product_variation_id: shirtVarId,
+              quantity: 1,
+              condition: 'resaleable',
+            },
+          ],
+        },
+      });
+      expect(retRes.statusCode).toBe(201);
+      const ret = JSON.parse(retRes.payload);
+      expect(ret.inbound_subtotal).toBe(900);
+      expect(ret.net_amount).toBe(-900);
+    });
+  });
 });

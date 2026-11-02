@@ -86,6 +86,21 @@ export class ReturnsService {
       );
       const damagedLocationId = damRes.rows.length > 0 ? damRes.rows[0].id : null;
 
+      let linkedSale: { subtotal: number; discount_amount: number } | null = null;
+      if (dto.sale_id) {
+        const saleHeaderRes = await client.query(
+          'SELECT subtotal, discount_amount FROM sales WHERE id = $1',
+          [dto.sale_id]
+        );
+        if (saleHeaderRes.rows.length === 0) {
+          throw new NotFoundException(`Linked sale #${dto.sale_id} not found.`);
+        }
+        linkedSale = {
+          subtotal: Number(saleHeaderRes.rows[0].subtotal),
+          discount_amount: Number(saleHeaderRes.rows[0].discount_amount),
+        };
+      }
+
       // 3. Process Inbound Items (Coming Back) & Outbound Items (Going Out)
       let inboundSubtotal = 0;
       let outboundSubtotal = 0;
@@ -180,8 +195,14 @@ export class ReturnsService {
                 );
               }
 
-              // Refund the price actually paid per Section 5.1
-              refundUnitPrice = Number(si.total) / Number(si.quantity);
+              // Refund the price actually paid per Section 5.1 (fair-share of cart discount)
+              const basePaidPrice = Number(si.total) / Number(si.quantity);
+              if (linkedSale && linkedSale.subtotal > 0 && linkedSale.discount_amount > 0) {
+                const discRatio = linkedSale.discount_amount / linkedSale.subtotal;
+                refundUnitPrice = Math.round(basePaidPrice * (1 - discRatio) * 100) / 100;
+              } else {
+                refundUnitPrice = basePaidPrice;
+              }
             } else if (item.unit_price !== undefined) {
               refundUnitPrice = item.unit_price;
             }

@@ -44,7 +44,13 @@ export class PosService {
     if (!dto.items || dto.items.length === 0) {
       throw new BadRequestException('A sale must include at least one item.');
     }
-    if (!dto.payment_account_id) {
+    const rawPayments =
+      dto.payments && dto.payments.length > 0
+        ? dto.payments
+        : dto.payment_account_id
+        ? [{ payment_account_id: dto.payment_account_id, amount: 0 }]
+        : [];
+    if (rawPayments.length === 0) {
       throw new BadRequestException('Payment account is required for counter sales.');
     }
     const variationIds = dto.items.map((i) => i.product_variation_id);
@@ -73,29 +79,45 @@ export class PosService {
     }
     const shop = shopRes.rows[0];
 
-    // 2. Fetch payment account
-    const accRes = await this.pool.query(
-      'SELECT id, code, name, type, location_id, is_active, payment_method FROM accounts WHERE id = $1',
-      [dto.payment_account_id]
-    );
-    if (accRes.rows.length === 0) {
-      throw new NotFoundException(`Payment account #${dto.payment_account_id} not found.`);
-    }
-    const payAccount = accRes.rows[0];
-    if (payAccount.type !== 'asset') {
-      throw new BadRequestException(`Payment account must be an asset account. Got: ${payAccount.type}`);
-    }
+    // 2. Fetch & validate payment accounts
+    const validatedPayments: Array<{
+      account: { id: number; code: string; name: string; payment_method: string };
+      amount: number;
+      reference_note?: string;
+    }> = [];
 
-    // Rule 1: Cross-shop account check
-    if (payAccount.location_id !== null && payAccount.location_id !== shopId) {
-      throw new BadRequestException(
-        `Payment account '${payAccount.code}' belongs to shop ID ${payAccount.location_id}, which does not match active shop ID ${shopId}. Cross-shop sales are prohibited by Rule 1.`
+    for (const p of rawPayments) {
+      const accRes = await this.pool.query(
+        'SELECT id, code, name, type, location_id, is_active, payment_method FROM accounts WHERE id = $1',
+        [p.payment_account_id]
       );
+      if (accRes.rows.length === 0) {
+        throw new NotFoundException(`Payment account #${p.payment_account_id} not found.`);
+      }
+      const payAccount = accRes.rows[0];
+      if (payAccount.type !== 'asset') {
+        throw new BadRequestException(`Payment account must be an asset account. Got: ${payAccount.type}`);
+      }
+
+      // Rule 1: Cross-shop account check
+      if (payAccount.location_id !== null && payAccount.location_id !== shopId) {
+        throw new BadRequestException(
+          `Payment account '${payAccount.code}' belongs to shop ID ${payAccount.location_id}, which does not match active shop ID ${shopId}. Cross-shop sales are prohibited by Rule 1.`
+        );
+      }
+
+      if (!payAccount.payment_method) {
+        throw new BadRequestException(`Account '${payAccount.code}' cannot take payments.`);
+      }
+
+      validatedPayments.push({
+        account: payAccount,
+        amount: Number(p.amount || 0),
+        reference_note: p.reference_note?.trim(),
+      });
     }
 
-    if (!payAccount.payment_method) {
-      throw new BadRequestException(`Account '${payAccount.code}' cannot take payments.`);
-    }
+    const payAccount = validatedPayments[0].account;
 
     // 3. Rule 2: Server calculates all prices and permissions
     const varIds = variationIds;
@@ -224,6 +246,33 @@ export class PosService {
     const finalTotal = (subtotalPaisa - cartDiscountPaisa) / 100;
     const roundedCost = Math.round(totalCost * 100) / 100;
 
+    const finalTotalPaisa = subtotalPaisa - cartDiscountPaisa;
+    if (dto.payments && dto.payments.length > 0) {
+      const sumPaisa = validatedPayments.reduce((s, p) => s + Math.round(p.amount * 100), 0);
+      if (finalTotalPaisa > 0 && sumPaisa !== finalTotalPaisa) {
+        throw new BadRequestException(
+          `Payments sum (৳${(sumPaisa / 100).toFixed(2)}) must equal total payable (৳${(finalTotalPaisa / 100).toFixed(2)}).`
+        );
+      }
+    } else {
+      validatedPayments[0].amount = finalTotal;
+    }
+
+    let customerName = dto.customer_name?.trim() || 'Walk-in Customer';
+    let customerPhone = dto.customer_phone?.trim() || null;
+    let customerId = dto.customer_id ?? null;
+
+    if (customerId) {
+      const contactRes = await this.pool.query(
+        'SELECT id, name, phone FROM contacts WHERE id = $1 AND is_active = true',
+        [customerId]
+      );
+      if (contactRes.rows.length > 0) {
+        if (!dto.customer_name) customerName = contactRes.rows[0].name;
+        if (!dto.customer_phone) customerPhone = contactRes.rows[0].phone;
+      }
+    }
+
     // Counter sale rule: full payment required at counter (no credit sales per Section 2)
     const paidAmount = finalTotal;
 
@@ -265,25 +314,27 @@ export class PosService {
       }
 
       // Rule 3: Single posting function writes balanced entries
-      // 1. Revenue entry: Dr Shop Cash, Cr SALES_REVENUE
+      // 1. Revenue entry: Dr Payment Accounts, Cr SALES_REVENUE
       // 2. COGS entry: Dr COGS, Cr INVENTORY (at cost)
       // A free sale has no revenue lines and a zero-cost product has no COGS lines.
       const ledgerLines: LedgerLine[] = [];
       if (finalTotal > 0) {
-        ledgerLines.push(
-          {
-            account_code: payAccount.code,
-            direction: 'debit',
-            amount: finalTotal,
-            notes: `Counter cash collection ${invoiceNumber}`,
-          },
-          {
-            account_code: 'SALES_REVENUE',
-            direction: 'credit',
-            amount: finalTotal,
-            notes: `Sales revenue ${invoiceNumber}`,
+        for (const p of validatedPayments) {
+          if (p.amount > 0) {
+            ledgerLines.push({
+              account_code: p.account.code,
+              direction: 'debit',
+              amount: p.amount,
+              notes: `Counter ${p.account.payment_method} collection ${invoiceNumber}${p.reference_note ? ` (${p.reference_note})` : ''}`,
+            });
           }
-        );
+        }
+        ledgerLines.push({
+          account_code: 'SALES_REVENUE',
+          direction: 'credit',
+          amount: finalTotal,
+          notes: `Sales revenue ${invoiceNumber}`,
+        });
       }
       if (roundedCost > 0) {
         ledgerLines.push(
@@ -325,6 +376,7 @@ export class PosService {
           invoice_number,
           location_id,
           client_ref,
+          customer_id,
           customer_name,
           customer_phone,
           sale_type,
@@ -335,14 +387,15 @@ export class PosService {
           payment_account_id,
           entry_id,
           created_by
-        ) VALUES ($1, $2, $3, $4, $5, 'counter', $6, $7, $8, $9, $10, $11, $12)
+        ) VALUES ($1, $2, $3, $4, $5, $6, 'counter', $7, $8, $9, $10, $11, $12, $13)
         RETURNING id, created_at`,
         [
           invoiceNumber,
           shopId,
           dto.client_ref || null,
-          dto.customer_name || 'Walk-in Customer',
-          dto.customer_phone || null,
+          customerId,
+          customerName,
+          customerPhone,
           calculatedSubtotal,
           cartDiscount,
           finalTotal,
@@ -353,6 +406,28 @@ export class PosService {
         ]
       );
       const saleId = saleRes.rows[0].id;
+
+      // Insert sale payments
+      for (const p of validatedPayments) {
+        if (p.amount > 0) {
+          await client.query(
+            `INSERT INTO sale_payments (
+              sale_id,
+              payment_account_id,
+              payment_method,
+              amount,
+              reference_note
+            ) VALUES ($1, $2, $3, $4, $5)`,
+            [
+              saleId,
+              p.account.id,
+              p.account.payment_method,
+              p.amount,
+              p.reference_note || null,
+            ]
+          );
+        }
+      }
 
       // Insert sale items
       for (const item of computedItems) {
@@ -453,6 +528,7 @@ export class PosService {
         l.name AS shop_name,
         l.code AS shop_code,
         s.client_ref,
+        s.customer_id,
         s.customer_name,
         s.customer_phone,
         s.sale_type,
@@ -479,6 +555,19 @@ export class PosService {
     const row = res.rows[0];
     const items = await this.getSaleItems(row.id);
 
+    const paymentsRes = await this.pool.query(
+      `SELECT sp.id, sp.sale_id, sp.payment_account_id, a.name AS payment_account_name,
+              sp.payment_method, sp.amount, sp.reference_note, sp.created_at
+       FROM sale_payments sp
+       JOIN accounts a ON a.id = sp.payment_account_id
+       WHERE sp.sale_id = $1 ORDER BY sp.id ASC`,
+      [row.id]
+    );
+    const payments = paymentsRes.rows.map((p) => ({
+      ...p,
+      amount: Number(p.amount),
+    }));
+
     return {
       ...row,
       subtotal: Number(row.subtotal),
@@ -486,6 +575,7 @@ export class PosService {
       total_amount: Number(row.total_amount),
       paid_amount: Number(row.paid_amount),
       items,
+      payments,
     };
   }
 

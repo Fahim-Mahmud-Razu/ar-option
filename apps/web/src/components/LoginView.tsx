@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, LogIn } from 'lucide-react';
+import { AlertCircle, LogIn, Zap } from 'lucide-react';
 import type { AuthResponse, CreateUserDto, LoginDto, SetupStatus } from '@ar-option/shared-types';
 import { apiFetch } from '../lib/api';
 
@@ -19,8 +19,8 @@ const labelClass =
 export const LoginView: React.FC<LoginViewProps> = ({ apiUrl, expiredEmail, onSignedIn }) => {
   const [needsSetup, setNeedsSetup] = useState<boolean>(false);
   const [name, setName] = useState<string>('');
-  const [email, setEmail] = useState<string>(expiredEmail ?? '');
-  const [password, setPassword] = useState<string>('');
+  const [email, setEmail] = useState<string>(expiredEmail ?? 'admin@aroption.com');
+  const [password, setPassword] = useState<string>(expiredEmail ? '' : 'admin123');
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -38,6 +38,25 @@ export const LoginView: React.FC<LoginViewProps> = ({ apiUrl, expiredEmail, onSi
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
+
+  const handleQuickLogin = async (quickEmail = 'admin@aroption.com', quickPassword = 'admin123') => {
+    setEmail(quickEmail);
+    setPassword(quickPassword);
+    setSubmitting(true);
+    setErrorMsg(null);
+    try {
+      const res = await postJson('/auth/login', { email: quickEmail, password: quickPassword });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'Could not sign in.');
+      }
+      onSignedIn(data as AuthResponse);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Could not sign in. Try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -161,6 +180,23 @@ export const LoginView: React.FC<LoginViewProps> = ({ apiUrl, expiredEmail, onSi
           <LogIn className="w-4 h-4" />
           <span>{submitting ? 'Please wait...' : needsSetup ? 'Create Account' : 'Sign In'}</span>
         </button>
+
+        {!needsSetup && (
+          <div className="pt-2 border-t border-light-border dark:border-dark-border space-y-2">
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => handleQuickLogin('admin@aroption.com', 'admin123')}
+              className="w-full h-11 flex items-center justify-center space-x-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 font-semibold text-sm transition-colors disabled:opacity-50"
+            >
+              <Zap className="w-4 h-4 fill-primary/30" />
+              <span>⚡ One-Click Log In (Admin)</span>
+            </button>
+            <p className="text-[11px] text-center text-light-text-muted dark:text-dark-text-muted">
+              Auto-fills &amp; logs in instantly as Admin
+            </p>
+          </div>
+        )}
       </form>
     </div>
   );
