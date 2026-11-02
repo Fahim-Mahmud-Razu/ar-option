@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { Search, X, AlertCircle } from 'lucide-react';
+import { Search, X, AlertCircle, Check } from 'lucide-react';
 import type { StockByShopGridItem, Shop } from '@ar-option/shared-types';
+import type { CartLineItem } from './types';
 import { taka } from '../../lib/money';
 
 interface ProductGridProps {
@@ -17,6 +18,7 @@ interface ProductGridProps {
   searchQuery: string;
   setSearchQuery: (q: string) => void;
   isPhone: boolean;
+  cart?: CartLineItem[];
 }
 
 export const ProductGrid: React.FC<ProductGridProps> = ({
@@ -28,6 +30,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   searchQuery,
   setSearchQuery,
   isPhone,
+  cart = [],
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedBrand, setSelectedBrand] = useState<string>('all');
@@ -226,6 +229,11 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
                 return sum + (s?.qty || 0);
               }, 0);
 
+              const prodInCartCount = prod.items.reduce((sum, v) => {
+                const ci = cart.find((c) => c.variation_id === v.variation_id);
+                return sum + (ci?.quantity || 0);
+              }, 0);
+              const isSelected = prodInCartCount > 0;
               const hasMultipleSizes = prod.items.length > 1;
 
               return (
@@ -238,8 +246,10 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
                       onAddToCart(prod.items[0]);
                     }
                   }}
-                  className={`p-3 rounded-xl border flex flex-col justify-between text-left select-none cursor-pointer active:scale-[0.98] transition-all ${
-                    totalStock > 0
+                  className={`p-3 rounded-xl border flex flex-col justify-between text-left select-none cursor-pointer active:scale-[0.98] transition-all relative ${
+                    isSelected
+                      ? 'bg-primary/5 dark:bg-primary/10 border-primary ring-2 ring-primary/40 shadow-sm'
+                      : totalStock > 0
                       ? 'bg-light-surface dark:bg-dark-surface border-light-border dark:border-dark-border shadow-xs'
                       : 'bg-light-surface/40 dark:bg-dark-surface/40 border-light-border/40 dark:border-dark-border/40 opacity-60'
                   }`}
@@ -249,11 +259,19 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
                       <span className="text-[10px] font-mono font-bold text-light-text-muted uppercase">
                         {prod.product_code}
                       </span>
-                      {hasMultipleSizes && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary dark:text-primary-tint">
-                          {prod.items.length} Sizes
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {isSelected && (
+                          <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-primary text-on-primary font-bold text-[10px] shadow-2xs">
+                            <Check className="w-2.5 h-2.5 stroke-[2.5]" />
+                            <span>{prodInCartCount} in cart</span>
+                          </span>
+                        )}
+                        {hasMultipleSizes && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary dark:text-primary-tint">
+                            {prod.items.length} Sizes
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <h3 className="text-xs font-bold leading-tight line-clamp-2">
                       {prod.product_name}
@@ -284,6 +302,9 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
             {filteredVariations.map((item) => {
               const shopStock = item.stocks.find((s) => s.location_id === activeShop?.id)?.qty || 0;
               const isAvailable = shopStock > 0;
+              const inCartItem = cart.find((c) => c.variation_id === item.variation_id);
+              const inCartQty = inCartItem?.quantity || 0;
+              const isSelected = inCartQty > 0;
 
               return (
                 <div
@@ -293,8 +314,10 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
                       onAddToCart(item);
                     }
                   }}
-                  className={`p-3 rounded-xl border flex flex-col justify-between text-left select-none transition-all ${
-                    isAvailable
+                  className={`p-3 rounded-xl border flex flex-col justify-between text-left select-none transition-all relative ${
+                    isSelected
+                      ? 'bg-primary/5 dark:bg-primary/10 border-primary ring-2 ring-primary/40 shadow-sm cursor-pointer active:scale-[0.98]'
+                      : isAvailable
                       ? 'bg-light-surface dark:bg-dark-surface border-light-border dark:border-dark-border hover:border-primary active:scale-[0.98] cursor-pointer shadow-xs'
                       : 'bg-light-surface/40 dark:bg-dark-surface/40 border-light-border/40 dark:border-dark-border/40 opacity-60 cursor-not-allowed'
                   }`}
@@ -304,9 +327,23 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
                       <span className="text-[10px] font-mono font-bold text-light-text-muted uppercase">
                         {item.product_code}
                       </span>
-                      <span className="text-xs font-extrabold px-1.5 py-0.5 rounded bg-primary/10 text-primary dark:text-primary-tint font-mono">
-                        {item.size}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        {isSelected && (
+                          <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-primary text-on-primary font-bold text-[10px] shadow-2xs">
+                            <Check className="w-3 h-3 stroke-[2.5]" />
+                            <span>{inCartQty} in cart</span>
+                          </span>
+                        )}
+                        <span
+                          className={`text-xs font-extrabold px-1.5 py-0.5 rounded font-mono ${
+                            isSelected
+                              ? 'bg-primary text-on-primary font-black'
+                              : 'bg-primary/10 text-primary dark:text-primary-tint'
+                          }`}
+                        >
+                          {item.size}
+                        </span>
+                      </div>
                     </div>
 
                     <h3 className="text-xs font-bold leading-tight line-clamp-2">

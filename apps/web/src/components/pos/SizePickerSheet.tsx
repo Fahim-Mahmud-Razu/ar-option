@@ -1,5 +1,7 @@
 import React from 'react';
+import { Check } from 'lucide-react';
 import type { StockByShopGridItem } from '@ar-option/shared-types';
+import type { CartLineItem } from './types';
 import { Sheet } from '../Sheet';
 import { taka } from '../../lib/money';
 
@@ -13,6 +15,7 @@ interface SizePickerSheetProps {
   activeShopId: number | null;
   onSelectVariation: (item: StockByShopGridItem) => void;
   onClose: () => void;
+  cart?: CartLineItem[];
 }
 
 export const SizePickerSheet: React.FC<SizePickerSheetProps> = ({
@@ -20,6 +23,7 @@ export const SizePickerSheet: React.FC<SizePickerSheetProps> = ({
   activeShopId,
   onSelectVariation,
   onClose,
+  cart = [],
 }) => {
   if (!product) return null;
 
@@ -44,6 +48,9 @@ export const SizePickerSheet: React.FC<SizePickerSheetProps> = ({
               .reduce((sum, s) => sum + s.qty, 0);
 
             const isAvailable = shopStock > 0;
+            const inCartItem = cart.find((c) => c.variation_id === item.variation_id);
+            const inCartQty = inCartItem?.quantity || 0;
+            const isSelected = inCartQty > 0;
 
             return (
               <button
@@ -51,16 +58,26 @@ export const SizePickerSheet: React.FC<SizePickerSheetProps> = ({
                 type="button"
                 disabled={!isAvailable}
                 onClick={() => onSelectVariation(item)}
-                className={`min-h-[48px] p-3 rounded-xl border flex flex-col justify-between text-left transition-all select-none ${
-                  isAvailable
+                className={`min-h-[48px] p-3 rounded-xl border flex flex-col justify-between text-left transition-all select-none relative ${
+                  isSelected
+                    ? 'bg-primary/5 dark:bg-primary/10 border-primary ring-2 ring-primary/40 shadow-sm'
+                    : isAvailable
                     ? 'bg-light-surface dark:bg-dark-surface border-light-border dark:border-dark-border hover:border-primary active:scale-[0.98] shadow-sm'
                     : 'bg-light-surface/40 dark:bg-dark-surface/40 border-light-border/40 dark:border-dark-border/40 opacity-60 cursor-not-allowed'
                 }`}
               >
                 <div className="flex items-center justify-between w-full">
-                  <span className="font-extrabold text-sm font-mono text-primary dark:text-primary-tint">
-                    {item.size}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-extrabold text-sm font-mono text-primary dark:text-primary-tint">
+                      {item.size}
+                    </span>
+                    {isSelected && (
+                      <span className="flex items-center gap-0.5 px-1.5 py-0.2 rounded-full bg-primary text-on-primary font-bold text-[10px]">
+                        <Check className="w-2.5 h-2.5 stroke-[2.5]" />
+                        <span>{inCartQty} in cart</span>
+                      </span>
+                    )}
+                  </div>
                   <span className="font-mono text-xs font-bold">
                     {taka(item.selling_price)}
                   </span>

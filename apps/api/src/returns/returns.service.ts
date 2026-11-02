@@ -264,24 +264,9 @@ export class ReturnsService {
       // If net == 0: Even exchange
       const netAmount = outboundSubtotal - inboundSubtotal;
 
-      // 5. Check Approval limit for manual returns
-      const approvalSettingRes = await client.query(
-        "SELECT value FROM settings WHERE key = 'manual_return_approval_limit'"
-      );
-      const approvalLimit = approvalSettingRes.rows.length > 0 ? Number(approvalSettingRes.rows[0].value) : 2000.0;
-
-      let isApproved = true;
-      let approvedBy: number | null = user.id;
-
-      if (isManual && inboundSubtotal > approvalLimit) {
-        const hasApprovePerm =
-          user.role === 'admin' ||
-          (user.permissions && user.permissions.includes('returns.approve'));
-        if (!hasApprovePerm) {
-          isApproved = false;
-          approvedBy = null;
-        }
-      }
+      // 5. Approval: No cap restriction on manual returns
+      const isApproved = true;
+      const approvedBy: number | null = user.id;
 
       // 6. Generate sequential return number inside lock
       const countRes = await client.query(

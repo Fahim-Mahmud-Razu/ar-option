@@ -179,7 +179,7 @@ export const PosHeader: React.FC<PosHeaderProps> = ({
       {/* Second Strip: Customer Selection + SKU Barcode Entry */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1 border-t border-light-border/60 dark:border-dark-border/60">
         {/* Customer Search & Select Box */}
-        <div ref={dropdownRef} className="relative flex-1 sm:max-w-xs md:max-w-sm">
+        <div ref={dropdownRef} className="relative flex-1 sm:max-w-sm md:max-w-md lg:max-w-lg">
           {customer ? (
             <div className="h-10 px-3 flex items-center justify-between rounded-xl bg-primary/10 border border-primary/30 text-primary dark:text-primary-tint">
               <div className="flex items-center gap-2 truncate">

@@ -133,7 +133,7 @@ export const CartTable: React.FC<CartTableProps> = ({
       </div>
 
       {/* Cart Lines List */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
+      <div className="flex-1 min-h-[160px] overflow-y-auto p-3 space-y-2">
         {cart.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-center text-light-text-muted dark:text-dark-text-muted">
             <ShoppingCart className="w-8 h-8 stroke-1 mb-2 opacity-50" />
@@ -147,7 +147,7 @@ export const CartTable: React.FC<CartTableProps> = ({
             return (
               <div
                 key={item.variation_id}
-                className="p-3 rounded-xl bg-light-surface-hover dark:bg-dark-surface-hover border border-light-border dark:border-dark-border space-y-2"
+                className="p-2.5 rounded-xl bg-light-surface-hover dark:bg-dark-surface-hover border border-light-border dark:border-dark-border space-y-2 shadow-2xs"
               >
                 {/* Title & Size Badge & Remove */}
                 <div className="flex items-start justify-between gap-2">
@@ -157,15 +157,15 @@ export const CartTable: React.FC<CartTableProps> = ({
                     </div>
                     <div className="flex items-center gap-1.5 mt-1 text-[11px] text-light-text-muted font-mono">
                       <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary dark:text-primary-tint font-bold">
-                        {item.size}
+                        Size: {item.size}
                       </span>
-                      <span>{item.sku}</span>
+                      <span className="truncate">{item.sku}</span>
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => onRemoveItem(item.variation_id)}
-                    className="text-light-text-muted hover:text-rose-600 p-1"
+                    className="text-light-text-muted hover:text-rose-600 p-1 rounded-md transition-colors"
                     aria-label="Remove item"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -173,7 +173,7 @@ export const CartTable: React.FC<CartTableProps> = ({
                 </div>
 
                 {/* Line Inputs: Qty Stepper, Editable Price, Editable Disc, Line Total */}
-                <div className="flex items-center justify-between gap-2 pt-1 border-t border-light-border/60 dark:border-dark-border/60">
+                <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-light-border/60 dark:border-dark-border/60">
                   {/* Quantity Stepper */}
                   <div className="flex items-center border border-light-border dark:border-dark-border rounded-lg bg-light-surface dark:bg-dark-surface">
                     <button
@@ -209,7 +209,7 @@ export const CartTable: React.FC<CartTableProps> = ({
                         onChange={(e) =>
                           onUpdatePrice(item.variation_id, Math.max(0, parseFloat(e.target.value) || 0))
                         }
-                        className="w-16 h-7 px-1.5 text-right text-xs font-mono font-bold rounded-md bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border focus:ring-1 focus:ring-focus-ring"
+                        className="w-18 h-7 px-1.5 text-right text-xs font-mono font-bold rounded-md bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border focus:ring-1 focus:ring-focus-ring"
                       />
                     ) : (
                       <span className="font-mono text-xs font-bold">{taka(item.unit_price)}</span>
@@ -247,15 +247,15 @@ export const CartTable: React.FC<CartTableProps> = ({
         )}
       </div>
 
-      {/* Cart Footer: Discount Input, Subtotal, Grand Payable Total, Action Grid */}
-      <div className="p-3 bg-light-surface-hover dark:bg-dark-surface-hover border-t border-light-border dark:border-dark-border space-y-3 shrink-0">
+      {/* Cart Footer: Discount, Combined Summary & Compact Action Grid */}
+      <div className="p-3 bg-light-surface-hover dark:bg-dark-surface-hover border-t border-light-border dark:border-dark-border space-y-2 shrink-0">
         {/* Cart-level Discount Selector */}
         <div className="flex items-center gap-2">
-          <div className="flex rounded-lg border border-light-border dark:border-dark-border overflow-hidden bg-light-surface dark:bg-dark-surface shrink-0">
+          <div className="flex rounded-lg border border-light-border dark:border-dark-border overflow-hidden bg-light-surface dark:bg-dark-surface shrink-0 h-8">
             <button
               type="button"
               onClick={() => onChangeDiscount(orderDiscount, 'taka')}
-              className={`px-2 py-1 text-xs font-bold transition-colors ${
+              className={`px-2.5 text-xs font-bold transition-colors ${
                 discountType === 'taka'
                   ? 'bg-primary text-on-primary'
                   : 'text-light-text dark:text-dark-text hover:bg-light-surface-hover'
@@ -266,7 +266,7 @@ export const CartTable: React.FC<CartTableProps> = ({
             <button
               type="button"
               onClick={() => onChangeDiscount(orderDiscount, 'percent')}
-              className={`px-2 py-1 text-xs font-bold transition-colors ${
+              className={`px-2.5 text-xs font-bold transition-colors ${
                 discountType === 'percent'
                   ? 'bg-primary text-on-primary'
                   : 'text-light-text dark:text-dark-text hover:bg-light-surface-hover'
@@ -291,79 +291,51 @@ export const CartTable: React.FC<CartTableProps> = ({
           </div>
         </div>
 
-        {/* Subtotal & Discount rows */}
-        <div className="space-y-1 text-xs text-light-text-muted dark:text-dark-text-muted">
-          <div className="flex justify-between">
+        {/* Grand Payable Total & Subtotal Integrated Display */}
+        <div className="p-2.5 rounded-xl bg-primary/10 border border-primary/25 space-y-1">
+          <div className="flex items-center justify-between text-xs text-light-text-muted dark:text-dark-text-muted">
             <span>Items ({totalItemCount}) Subtotal:</span>
-            <span className="font-mono text-light-text dark:text-dark-text font-bold">
+            <span className="font-mono font-bold text-light-text dark:text-dark-text">
               {taka(cartSubtotal)}
             </span>
           </div>
           {discountAmount > 0 && (
-            <div className="flex justify-between text-rose-600 dark:text-rose-400 font-semibold">
-              <span>Order Discount ({discountType === 'percent' ? `${orderDiscount}%` : 'Flat'}):</span>
+            <div className="flex items-center justify-between text-xs text-rose-600 dark:text-rose-400 font-semibold">
+              <span>Order Disc ({discountType === 'percent' ? `${orderDiscount}%` : 'Flat'}):</span>
               <span className="font-mono">-{taka(discountAmount)}</span>
             </div>
           )}
-        </div>
-
-        {/* Grand Payable Total Display Figure (Always Visible) */}
-        <div className="p-3 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-between">
-          <div>
-            <div className="text-[11px] font-bold text-light-text-muted dark:text-dark-text-muted uppercase">
-              Grand Payable Total
+          <div className="flex items-center justify-between pt-1 border-t border-primary/20">
+            <div>
+              <div className="text-[10px] font-extrabold uppercase tracking-wide text-light-text-muted dark:text-dark-text-muted">
+                Grand Payable Total
+              </div>
+              <div className="text-[10px] text-light-text-muted">Paid in Full</div>
             </div>
-            <div className="text-xs text-light-text-muted">Paid in Full</div>
-          </div>
-          <div className="font-mono text-xl md:text-2xl font-black text-primary dark:text-primary-tint">
-            {taka(grandTotal)}
+            <div className="font-mono text-xl sm:text-2xl font-black text-primary dark:text-primary-tint">
+              {taka(grandTotal)}
+            </div>
           </div>
         </div>
 
-        {/* Action Grid per DESIGN.md lines 557: Suspend, Cancel, Cash, Card, bKash, MultiPay */}
-        <div className="space-y-2">
-          {/* Quick Pay / Proceed row */}
-          <div className="grid grid-cols-2 gap-2">
-            {/* Suspend & Cancel Buttons */}
-            <button
-              type="button"
-              disabled={cart.length === 0}
-              onClick={onSuspend}
-              title="Park cart on this device (F8)"
-              className="h-10 px-2 rounded-xl border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface hover:bg-light-surface-hover dark:hover:bg-dark-surface-hover text-xs font-bold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-40"
-            >
-              <Pause className="w-3.5 h-3.5 text-amber-600" />
-              <span>Park (F8)</span>
-            </button>
+        {/* Action Grid: Suspend, Cancel, Cash, Card, bKash, MultiPay, Courier */}
+        <div className="space-y-1.5">
+          {/* CASH: Primary Payment Button (At least 48px per DESIGN.md line 557) */}
+          <button
+            type="button"
+            disabled={cart.length === 0 || submitting || !cashAccount}
+            onClick={() => {
+              if (cashAccount) onQuickPay('cash', cashAccount.id);
+            }}
+            title={cashAccount ? 'Pay with Cash' : 'No Cash account configured for this shop'}
+            className="w-full h-12 rounded-xl bg-primary hover:bg-primary-hover text-on-primary font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-30 disabled:pointer-events-none"
+          >
+            <Banknote className="w-5 h-5" />
+            <span>Cash {taka(grandTotal)}</span>
+          </button>
 
-            <button
-              type="button"
-              disabled={cart.length === 0}
-              onClick={onCancel}
-              title="Cancel and clear order"
-              className="h-10 px-2 rounded-xl border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface hover:bg-rose-500/10 text-rose-600 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-40"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Cancel</span>
-            </button>
-          </div>
-
-          {/* Payment action buttons (at least 48px tall per DESIGN.md line 542 & 557) */}
-          <div className="grid grid-cols-2 gap-2">
-            {/* CASH: Primary Payment Button */}
-            <button
-              type="button"
-              disabled={cart.length === 0 || submitting || !cashAccount}
-              onClick={() => {
-                if (cashAccount) onQuickPay('cash', cashAccount.id);
-              }}
-              title={cashAccount ? 'Pay with Cash' : 'No Cash account configured for this shop'}
-              className="h-12 col-span-2 rounded-xl bg-primary hover:bg-primary-hover text-on-primary font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-30 disabled:pointer-events-none"
-            >
-              <Banknote className="w-5 h-5" />
-              <span>Cash {taka(grandTotal)}</span>
-            </button>
-
+          {/* Secondary Payment Methods Grid: Card, bKash, MultiPay */}
+          <div className="grid grid-cols-3 gap-1.5">
             {/* CARD */}
             <button
               type="button"
@@ -372,21 +344,21 @@ export const CartTable: React.FC<CartTableProps> = ({
                 if (cardAccount) onQuickPay('card', cardAccount.id);
               }}
               title={cardAccount ? 'Pay with Card / Bank' : 'No Card account configured for this shop'}
-              className="h-12 rounded-xl border border-blue-500/40 hover:border-blue-500 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs hover:shadow-blue-500/10 active:scale-[0.99] disabled:opacity-30 disabled:border-light-border dark:disabled:border-dark-border disabled:bg-light-surface dark:disabled:bg-dark-surface disabled:text-light-text-muted dark:disabled:text-dark-text-muted disabled:pointer-events-none"
+              className="h-11 rounded-xl border border-blue-500/40 hover:border-blue-500 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs active:scale-[0.99] disabled:opacity-30 disabled:border-light-border dark:disabled:border-dark-border disabled:bg-light-surface dark:disabled:bg-dark-surface disabled:text-light-text-muted dark:disabled:text-dark-text-muted disabled:pointer-events-none"
             >
-              <CreditCard className="w-4 h-4 text-blue-500" />
+              <CreditCard className="w-3.5 h-3.5 text-blue-500" />
               <span>Card</span>
             </button>
 
-            {/* bKash (Mobile Banking) */}
+            {/* bKash */}
             <button
               type="button"
               disabled={cart.length === 0 || submitting || !bKashAccount}
               onClick={() => setBKashModalOpen(true)}
               title={bKashAccount ? 'Pay with bKash / Mobile Money' : 'No Mobile Money account configured'}
-              className="h-12 rounded-xl border border-[#e2136e]/40 hover:border-[#e2136e] bg-[#e2136e]/10 hover:bg-[#e2136e]/20 text-[#e2136e] hover:text-[#e2136e] font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs hover:shadow-pink-500/10 active:scale-[0.99] disabled:opacity-30 disabled:border-light-border dark:disabled:border-dark-border disabled:bg-light-surface dark:disabled:bg-dark-surface disabled:text-light-text-muted dark:disabled:text-dark-text-muted disabled:pointer-events-none"
+              className="h-11 rounded-xl border border-[#e2136e]/40 hover:border-[#e2136e] bg-[#e2136e]/10 hover:bg-[#e2136e]/20 text-[#e2136e] font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs active:scale-[0.99] disabled:opacity-30 disabled:border-light-border dark:disabled:border-dark-border disabled:bg-light-surface dark:disabled:bg-dark-surface disabled:text-light-text-muted dark:disabled:text-dark-text-muted disabled:pointer-events-none"
             >
-              <Smartphone className="w-4 h-4 text-[#e2136e]" />
+              <Smartphone className="w-3.5 h-3.5 text-[#e2136e]" />
               <span>bKash</span>
             </button>
 
@@ -396,24 +368,49 @@ export const CartTable: React.FC<CartTableProps> = ({
               disabled={cart.length === 0 || submitting}
               onClick={onOpenMultiPay}
               title="Split payment across multiple accounts (F4)"
-              className="h-12 col-span-2 rounded-xl border-2 border-dashed border-purple-500/50 hover:border-purple-500 bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-300 text-xs font-black flex items-center justify-center gap-2 transition-all shadow-xs hover:shadow-purple-500/10 active:scale-[0.99] disabled:opacity-30 disabled:border-light-border dark:disabled:border-dark-border disabled:bg-light-surface dark:disabled:bg-dark-surface disabled:text-light-text-muted dark:disabled:text-dark-text-muted disabled:pointer-events-none"
+              className="h-11 rounded-xl border-2 border-dashed border-purple-500/50 hover:border-purple-500 bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-300 text-xs font-black flex items-center justify-center gap-1.5 transition-all shadow-xs active:scale-[0.99] disabled:opacity-30 disabled:border-light-border dark:disabled:border-dark-border disabled:bg-light-surface dark:disabled:bg-dark-surface disabled:text-light-text-muted dark:disabled:text-dark-text-muted disabled:pointer-events-none"
             >
-              <Layers className="w-4 h-4 text-purple-500" />
-              <span>MultiPay (F4)</span>
+              <Layers className="w-3.5 h-3.5 text-purple-500" />
+              <span>MultiPay</span>
             </button>
           </div>
 
-          {/* Proceed to Checkout: Minimal and easily noticeable */}
-          <button
-            type="button"
-            disabled={cart.length === 0 || submitting}
-            onClick={onProceedToCheckout}
-            data-testid="proceed-to-checkout"
-            className="w-full h-11 rounded-xl border-2 border-primary/50 hover:border-primary bg-primary/10 hover:bg-primary/20 text-primary dark:text-primary-tint font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-xs hover:shadow-md active:scale-[0.99] disabled:opacity-30 disabled:pointer-events-none group"
-          >
-            <span>Proceed to Checkout</span>
-            <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-          </button>
+          {/* Aux Actions: Park, Cancel, Courier / Checkout */}
+          <div className="grid grid-cols-3 gap-1.5 pt-0.5">
+            <button
+              type="button"
+              disabled={cart.length === 0}
+              onClick={onSuspend}
+              title="Park cart on this device (F8)"
+              className="h-9 px-2 rounded-xl border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface hover:bg-light-surface-hover dark:hover:bg-dark-surface-hover text-xs font-semibold flex items-center justify-center gap-1 transition-colors disabled:opacity-40"
+            >
+              <Pause className="w-3 h-3 text-amber-600" />
+              <span>Park (F8)</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={cart.length === 0}
+              onClick={onCancel}
+              title="Cancel and clear order"
+              className="h-9 px-2 rounded-xl border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface hover:bg-rose-500/10 text-rose-600 text-xs font-semibold flex items-center justify-center gap-1 transition-colors disabled:opacity-40"
+            >
+              <Trash2 className="w-3 h-3" />
+              <span>Cancel</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={cart.length === 0 || submitting}
+              onClick={onProceedToCheckout}
+              data-testid="proceed-to-checkout"
+              title="Open Delivery / Courier Checkout"
+              className="h-9 px-2 rounded-xl border border-primary/50 hover:border-primary bg-primary/10 hover:bg-primary/20 text-primary dark:text-primary-tint font-bold text-xs flex items-center justify-center gap-1 transition-all shadow-2xs hover:shadow-xs active:scale-[0.99] disabled:opacity-30 disabled:pointer-events-none group"
+            >
+              <span>Courier</span>
+              <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+            </button>
+          </div>
         </div>
       </div>
 

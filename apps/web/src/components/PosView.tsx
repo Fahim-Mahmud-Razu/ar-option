@@ -664,7 +664,7 @@ export const PosView: React.FC<PosViewProps> = ({
         <div className="flex-1 flex overflow-hidden">
           {/* Desktop/Tablet Left Cart Panel — widened to give ample room for totals and payment options */}
           {!isPhone && (
-            <div className="w-[360px] md:w-[380px] lg:w-[400px] xl:w-[440px] shrink-0 h-full">
+            <div className="w-[420px] md:w-[450px] lg:w-[480px] xl:w-[520px] 2xl:w-[560px] shrink-0 h-full">
               <CartTable
                 cart={cart}
                 onUpdateQuantity={updateQuantity}
@@ -701,6 +701,7 @@ export const PosView: React.FC<PosViewProps> = ({
               searchQuery={searchQuery}
               setSearchQuery={setSearchQuery}
               isPhone={isPhone}
+              cart={cart}
             />
 
             {/* Mobile Phone Sticky Bottom Checkout Bar per DESIGN.md line 532 */}
@@ -797,6 +798,7 @@ export const PosView: React.FC<PosViewProps> = ({
           activeShopId={activeShop?.id ?? null}
           onSelectVariation={(item) => addToCart(item)}
           onClose={() => setSelectedProductForSize(null)}
+          cart={cart}
         />
       )}
 
