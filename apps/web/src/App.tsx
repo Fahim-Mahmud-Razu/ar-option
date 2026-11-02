@@ -31,6 +31,7 @@ import { CashInHandCard } from './components/till/CashInHandCard';
 import { LoginView } from './components/LoginView';
 import { ProductFormView } from './components/products/ProductFormView';
 import { ImportProductsView } from './components/imports/ImportProductsView';
+import { DataTableExample } from './components/pagination/DataTableExample';
 import { apiFetch, getToken, setToken, SESSION_EXPIRED_EVENT } from './lib/api';
 import { readStored, writeStored } from './lib/storage';
 import type {
@@ -70,7 +71,14 @@ const AppShell: React.FC<AppShellProps> = ({ session, onSignOut }) => {
 
   const [shops, setShops] = useState<Shop[]>([]);
   const [activeShop, setActiveShop] = useState<Shop | null>(null);
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('tab') || 'dashboard';
+    } catch {
+      return 'dashboard';
+    }
+  });
   const [inner, setInner] = useState<{ kind: 'product-form'; id: number | null } | { kind: 'import' } | null>(null);
   const [stockVersion, setStockVersion] = useState<number>(0);
   const productFormDirty = useRef<boolean>(false);
@@ -507,6 +515,11 @@ const AppShell: React.FC<AppShellProps> = ({ session, onSignOut }) => {
             {/* Tab 6: Shop Management */}
             {activeTab === 'settings' && (
               <ShopsView shops={shops} onRefreshShops={fetchShops} apiUrl={apiUrl} />
+            )}
+
+            {/* Tab 7: Pagination & Data Table Queue Demo */}
+            {activeTab === 'pagination-demo' && (
+              <DataTableExample />
             )}
 
           {/* Default Tab: Dashboard & Ledger (activeTab === 'dashboard' || activeTab === 'ledger') */}

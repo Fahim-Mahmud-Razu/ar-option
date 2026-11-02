@@ -11,6 +11,7 @@ import {
   Users,
   Scale,
   Banknote,
+  ListOrdered,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -31,6 +32,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
     { id: 'users', label: 'User Management', icon: Users },
     { id: 'settings', label: 'Shop Management', icon: Store },
     { id: 'ledger', label: 'Financial Statements', icon: Scale },
+    { id: 'pagination-demo', label: 'Pagination Demo', icon: ListOrdered },
   ];
 
   return (

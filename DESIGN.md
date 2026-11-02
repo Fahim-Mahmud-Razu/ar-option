@@ -497,6 +497,7 @@ Across both:
 - Row selection on phones starts from a Select button. Checkboxes are hidden until then.
 - Icon-only actions have an `aria-label` and at least a 44px target.
 - Paginate financial lists with "Showing X to Y of Z". Never use infinite scroll for records that need auditing.
+- For detailed instructions on long queue tables, cursor vs offset pagination, and the responsive Pagination Control System, see [design.md](../design.md) and [docs/design.md](docs/design.md).
 
 ### Status Badge
 

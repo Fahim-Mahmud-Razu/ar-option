@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   DollarSign,
   PlusCircle,
@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { Shop, Expense, ExpenseCategory, Account } from '@ar-option/shared-types';
 import { apiFetch } from '../lib/api';
+import { Pagination } from './pagination';
 
 interface ExpensesViewProps {
   activeShop: Shop | null;
@@ -32,6 +33,8 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
   const [loading, setLoading] = useState<boolean>(true);
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(25);
 
   // Form State
   const [amount, setAmount] = useState<string>('');
@@ -181,6 +184,11 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
 
   const totalExpenseAmount = expenses.reduce((sum, exp) => sum + exp.amount, 0);
 
+  const paginatedExpenses = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return expenses.slice(startIndex, startIndex + pageSize);
+  }, [expenses, currentPage, pageSize]);
+
   return (
     <div className="space-y-6">
       {/* Top Header Card */}
@@ -258,7 +266,10 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
         <span className="text-xs font-semibold text-light-text-muted">Category:</span>
         <select
           value={selectedCategoryId}
-          onChange={(e) => setSelectedCategoryId(e.target.value)}
+          onChange={(e) => {
+            setSelectedCategoryId(e.target.value);
+            setCurrentPage(1);
+          }}
           className="h-9 px-3 rounded-lg text-xs bg-light-surface-hover dark:bg-dark-surface-hover border border-light-border dark:border-dark-border font-semibold"
         >
           <option value="all">All Categories</option>
@@ -299,7 +310,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-light-border dark:divide-dark-border">
-                {expenses.map((exp) => (
+                {paginatedExpenses.map((exp) => (
                   <tr
                     key={exp.id}
                     className="hover:bg-light-surface-hover dark:hover:bg-dark-surface-hover"
@@ -339,6 +350,19 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
               </tbody>
             </table>
           </div>
+        )}
+
+        {!loading && expenses.length > 0 && (
+          <Pagination
+            totalItems={expenses.length}
+            currentPage={currentPage}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+            pageSizeOptions={[10, 25, 50, 100]}
+            itemLabel="expense"
+            itemLabelPlural="expenses"
+          />
         )}
       </div>
 

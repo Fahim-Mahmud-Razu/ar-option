@@ -313,14 +313,22 @@ test.describe('App Shell Smoke Test', () => {
     await expect(page.getByText('Opening Float', { exact: true })).toBeVisible();
     await expect(page.getByText('Petty Cash', { exact: true })).toBeVisible();
 
+    const noSidewaysScroll = () =>
+      page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+    expect(await noSidewaysScroll()).toBe(true);
+
     await page.getByRole('button', { name: 'Close & Handover' }).click();
     const sheet = page.getByTestId('close-till-sheet');
     await expect(sheet).toBeVisible();
-    await sheet.getByLabel('৳1,000 ৳0.00').fill('15');
-    await sheet.getByLabel('৳500 ৳0.00').fill('1');
+    expect(await noSidewaysScroll()).toBe(true);
+    const box = await sheet.getByRole('dialog').boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+    await sheet.locator('#denom-1000').fill('15');
+    await sheet.locator('#denom-500').fill('1');
     await expect(page.getByTestId('close-counted')).toHaveText('৳15,500.00');
     await expect(page.getByTestId('close-difference')).toHaveText('৳0.00');
-    await sheet.getByLabel('৳100 ৳0.00').fill('1');
+    await sheet.locator('#denom-100').fill('1');
     await expect(page.getByTestId('close-difference')).toHaveText('+৳100.00');
     await expect(sheet.getByRole('button', { name: 'Finish' })).toBeDisabled();
     await sheet.getByLabel(/Reason for the difference/).fill('Found a note');

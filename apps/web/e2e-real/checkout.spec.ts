@@ -4,6 +4,8 @@ import { Client } from 'pg';
 const API = 'http://localhost:3001';
 
 const wipeTables = [
+  'till_movements',
+  'till_sessions',
   'daily_cash_closings',
   'courier_parcel_items',
   'courier_parcels',

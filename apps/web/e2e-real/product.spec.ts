@@ -12,7 +12,7 @@ test.beforeAll(async () => {
   const client = new Client({ connectionString: databaseUrl });
   await client.connect();
   for (const t of [
-    'daily_cash_closings', 'courier_parcel_items', 'courier_parcels', 'courier_settlements',
+    'till_movements', 'till_sessions', 'daily_cash_closings', 'courier_parcel_items', 'courier_parcels', 'courier_settlements',
     'return_items', 'returns', 'sale_items', 'sales', 'expenses', 'stock_transfer_items',
     'stock_transfers', 'stock_movements', 'stock', 'product_variations', 'products',
     'categories', 'brands', 'account_transactions', 'user_locations', 'users',
