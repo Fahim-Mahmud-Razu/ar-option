@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: ar-option-api
+    runtime: docker
+    region: singapore
+    plan: free
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: HOST
+        value: 0.0.0.0
+      - key: CORS_ORIGIN
+        value: https://ar-option-web.a-r-option-shop.workers.dev
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
