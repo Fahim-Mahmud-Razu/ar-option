@@ -19,7 +19,7 @@ test.beforeAll(async () => {
   ]) {
     await client.query(`DELETE FROM ${table}`);
   }
-  await client.query("DELETE FROM accounts WHERE code LIKE 'CASH_%'");
+  await client.query("DELETE FROM accounts WHERE code LIKE 'CASH_%' OR code LIKE 'CARD_%' OR code LIKE 'BKASH_%'");
   await client.query('DELETE FROM locations WHERE is_system = false');
   await client.end();
 });

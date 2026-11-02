@@ -662,9 +662,9 @@ export const PosView: React.FC<PosViewProps> = ({
       ) : (
         /* Standard Layout: Cart (Desktop/Tablet) + Product Grid */
         <div className="flex-1 flex overflow-hidden">
-          {/* Desktop/Tablet Left Cart Panel (320px tablet, 360px laptop, 400px desktop per DESIGN.md lines 530-532) */}
+          {/* Desktop/Tablet Left Cart Panel — widened to give ample room for totals and payment options */}
           {!isPhone && (
-            <div className="w-[320px] lg:w-[360px] xl:w-[400px] shrink-0 h-full">
+            <div className="w-[360px] md:w-[380px] lg:w-[400px] xl:w-[440px] shrink-0 h-full">
               <CartTable
                 cart={cart}
                 onUpdateQuantity={updateQuantity}

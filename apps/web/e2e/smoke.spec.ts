@@ -365,4 +365,19 @@ test.describe('App Shell Smoke Test', () => {
     await expect(sheet).toBeHidden();
     await expect(page.getByTestId('till-current-cash')).toBeVisible();
   });
+
+  test('can collapse and expand navigation sidebar slider', async ({ page }) => {
+    await page.goto('/');
+    const toggleBtn = page.getByTestId('toggle-sidebar-button');
+    if (await toggleBtn.isVisible()) {
+      // Toggle collapse
+      await toggleBtn.click();
+      const sidebar = page.locator('aside.hidden.lg\\:flex');
+      await expect(sidebar).toHaveClass(/w-16/);
+
+      // Toggle expand
+      await toggleBtn.click();
+      await expect(sidebar).toHaveClass(/w-60|w-64/);
+    }
+  });
 });

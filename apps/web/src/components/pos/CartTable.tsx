@@ -12,6 +12,7 @@ import {
   X,
   AlertCircle,
   CheckCircle2,
+  ArrowRight,
 } from 'lucide-react';
 import type { Account } from '@ar-option/shared-types';
 import type { CartLineItem } from './types';
@@ -357,7 +358,7 @@ export const CartTable: React.FC<CartTableProps> = ({
                 if (cashAccount) onQuickPay('cash', cashAccount.id);
               }}
               title={cashAccount ? 'Pay with Cash' : 'No Cash account configured for this shop'}
-              className="h-12 col-span-2 rounded-xl bg-primary hover:bg-primary-hover text-on-primary font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              className="h-12 col-span-2 rounded-xl bg-primary hover:bg-primary-hover text-on-primary font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-30 disabled:pointer-events-none"
             >
               <Banknote className="w-5 h-5" />
               <span>Cash {taka(grandTotal)}</span>
@@ -371,21 +372,21 @@ export const CartTable: React.FC<CartTableProps> = ({
                 if (cardAccount) onQuickPay('card', cardAccount.id);
               }}
               title={cardAccount ? 'Pay with Card / Bank' : 'No Card account configured for this shop'}
-              className="h-12 rounded-xl border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface hover:border-primary text-xs font-bold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-40"
+              className="h-12 rounded-xl border border-blue-500/40 hover:border-blue-500 bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs hover:shadow-blue-500/10 active:scale-[0.99] disabled:opacity-30 disabled:border-light-border dark:disabled:border-dark-border disabled:bg-light-surface dark:disabled:bg-dark-surface disabled:text-light-text-muted dark:disabled:text-dark-text-muted disabled:pointer-events-none"
             >
-              <CreditCard className="w-4 h-4 text-primary" />
+              <CreditCard className="w-4 h-4 text-blue-500" />
               <span>Card</span>
             </button>
 
-            {/* bKash */}
+            {/* bKash (Mobile Banking) */}
             <button
               type="button"
               disabled={cart.length === 0 || submitting || !bKashAccount}
               onClick={() => setBKashModalOpen(true)}
               title={bKashAccount ? 'Pay with bKash / Mobile Money' : 'No Mobile Money account configured'}
-              className="h-12 rounded-xl border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface hover:border-primary text-xs font-bold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-40"
+              className="h-12 rounded-xl border border-[#e2136e]/40 hover:border-[#e2136e] bg-[#e2136e]/10 hover:bg-[#e2136e]/20 text-[#e2136e] hover:text-[#e2136e] font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs hover:shadow-pink-500/10 active:scale-[0.99] disabled:opacity-30 disabled:border-light-border dark:disabled:border-dark-border disabled:bg-light-surface dark:disabled:bg-dark-surface disabled:text-light-text-muted dark:disabled:text-dark-text-muted disabled:pointer-events-none"
             >
-              <Smartphone className="w-4 h-4 text-pink-600" />
+              <Smartphone className="w-4 h-4 text-[#e2136e]" />
               <span>bKash</span>
             </button>
 
@@ -395,21 +396,23 @@ export const CartTable: React.FC<CartTableProps> = ({
               disabled={cart.length === 0 || submitting}
               onClick={onOpenMultiPay}
               title="Split payment across multiple accounts (F4)"
-              className="h-12 col-span-2 rounded-xl border-2 border-dashed border-primary/40 hover:border-primary bg-primary/5 hover:bg-primary/10 text-primary dark:text-primary-tint text-xs font-extrabold flex items-center justify-center gap-2 transition-colors disabled:opacity-40"
+              className="h-12 col-span-2 rounded-xl border-2 border-dashed border-purple-500/50 hover:border-purple-500 bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-300 text-xs font-black flex items-center justify-center gap-2 transition-all shadow-xs hover:shadow-purple-500/10 active:scale-[0.99] disabled:opacity-30 disabled:border-light-border dark:disabled:border-dark-border disabled:bg-light-surface dark:disabled:bg-dark-surface disabled:text-light-text-muted dark:disabled:text-dark-text-muted disabled:pointer-events-none"
             >
-              <Layers className="w-4 h-4" />
+              <Layers className="w-4 h-4 text-purple-500" />
               <span>MultiPay (F4)</span>
             </button>
           </div>
 
-          {/* Standard Proceed to Checkout button (for structured checkout / tests) */}
+          {/* Proceed to Checkout: Minimal and easily noticeable */}
           <button
             type="button"
             disabled={cart.length === 0 || submitting}
             onClick={onProceedToCheckout}
-            className="w-full h-10 rounded-xl bg-light-surface-hover dark:bg-dark-surface-hover hover:bg-primary hover:text-on-primary border border-light-border dark:border-dark-border text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+            data-testid="proceed-to-checkout"
+            className="w-full h-11 rounded-xl border-2 border-primary/50 hover:border-primary bg-primary/10 hover:bg-primary/20 text-primary dark:text-primary-tint font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-xs hover:shadow-md active:scale-[0.99] disabled:opacity-30 disabled:pointer-events-none group"
           >
             <span>Proceed to Checkout</span>
+            <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
           </button>
         </div>
       </div>

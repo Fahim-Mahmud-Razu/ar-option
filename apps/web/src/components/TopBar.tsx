@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sun, Moon, LogOut, User as UserIcon } from 'lucide-react';
+import { Sun, Moon, LogOut, User as UserIcon, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { ShopChip } from './ShopChip';
 import type { Shop } from '@ar-option/shared-types';
 
@@ -13,6 +13,8 @@ interface TopBarProps {
   isAdmin: boolean;
   userName: string;
   onSignOut: () => void;
+  sidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -25,10 +27,28 @@ export const TopBar: React.FC<TopBarProps> = ({
   isAdmin,
   userName,
   onSignOut,
+  sidebarCollapsed = false,
+  onToggleSidebar,
 }) => {
   return (
     <header className="h-14 md:h-16 px-4 md:px-6 bg-light-surface dark:bg-dark-surface border-b border-light-border dark:border-dark-border flex items-center justify-between sticky top-0 z-30">
       <div className="flex items-center space-x-3">
+        {onToggleSidebar && (
+          <button
+            type="button"
+            onClick={onToggleSidebar}
+            title={sidebarCollapsed ? 'Expand navigation (Ctrl+B)' : 'Collapse navigation (Ctrl+B)'}
+            aria-label={sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+            data-testid="topbar-toggle-sidebar-button"
+            className="hidden md:flex p-1.5 -ml-1 rounded-lg text-light-text-muted hover:text-light-text dark:hover:text-dark-text hover:bg-light-surface-hover dark:hover:bg-dark-surface-hover transition-colors"
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen className="w-5 h-5 text-primary dark:text-primary-tint" />
+            ) : (
+              <PanelLeftClose className="w-5 h-5" />
+            )}
+          </button>
+        )}
         <div className="w-8 h-8 rounded-lg bg-primary text-on-primary flex items-center justify-center font-bold text-sm tracking-tight">
           AR
         </div>

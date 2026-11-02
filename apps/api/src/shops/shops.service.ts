@@ -42,12 +42,20 @@ export class ShopsService {
       );
       const shop = result.rows[0];
 
-      // Configure default shop cash account (Rule 1 & Rule 3: shop-owned cash account)
-      const accountCode = `CASH_${cleanCode.replace(/[^A-Z0-9]/g, '_')}`;
+      // Configure default shop payment accounts (Cash, Card, bKash)
+      const sanitizedCode = cleanCode.replace(/[^A-Z0-9]/g, '_');
       await client.query(
         `INSERT INTO accounts (code, name, type, location_id, is_active, payment_method)
-         VALUES ($1, $2, 'asset', $3, true, 'cash')`,
-        [accountCode, `${shop.name} Cash`, shop.id]
+         VALUES 
+           ($1, $2, 'asset', $3, true, 'cash'),
+           ($4, $5, 'asset', $6, true, 'card'),
+           ($7, $8, 'asset', $9, true, 'bkash')
+         ON CONFLICT (code) DO NOTHING`,
+        [
+          `CASH_${sanitizedCode}`, `${shop.name} Cash`, shop.id,
+          `CARD_${sanitizedCode}`, `${shop.name} Card`, shop.id,
+          `BKASH_${sanitizedCode}`, `${shop.name} bKash`, shop.id,
+        ]
       );
 
       await client.query('COMMIT');

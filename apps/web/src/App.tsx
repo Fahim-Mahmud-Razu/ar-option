@@ -3,17 +3,6 @@ import {
   Server,
   Database,
   Scale,
-  PlusCircle,
-  CheckCircle2,
-  AlertCircle,
-  RefreshCw,
-  ShoppingCart,
-  RotateCcw,
-  Truck,
-  Banknote,
-  Package,
-  DollarSign,
-  ArrowLeftRight,
 } from 'lucide-react';
 import { TopBar } from './components/TopBar';
 import { BottomTabs } from './components/BottomTabs';
@@ -27,10 +16,10 @@ import { ExpensesView } from './components/ExpensesView';
 import { ReturnsView } from './components/ReturnsView';
 import { CourierView } from './components/CourierView';
 import { TillView } from './components/till/TillView';
-import { CashInHandCard } from './components/till/CashInHandCard';
 import { LoginView } from './components/LoginView';
 import { ProductFormView } from './components/products/ProductFormView';
 import { ImportProductsView } from './components/imports/ImportProductsView';
+import { DashboardView } from './components/DashboardView';
 import { DataTableExample } from './components/pagination/DataTableExample';
 import { apiFetch, getToken, setToken, SESSION_EXPIRED_EVENT } from './lib/api';
 import { readStored, writeStored } from './lib/storage';
@@ -38,7 +27,6 @@ import type {
   HealthResponse,
   Shop,
   TrialBalanceItem,
-  Account,
   DashboardKpis,
   AuthResponse,
   User,
@@ -47,6 +35,7 @@ import type {
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const THEME_KEY = 'ar_option_theme';
 const SHOP_KEY = 'ar_option_shop';
+const SIDEBAR_COLLAPSED_KEY = 'ar_option_sidebar_collapsed';
 
 const startsDark = (): boolean => {
   const saved = readStored(THEME_KEY);
@@ -83,25 +72,36 @@ const AppShell: React.FC<AppShellProps> = ({ session, onSignOut }) => {
   const [stockVersion, setStockVersion] = useState<number>(0);
   const productFormDirty = useRef<boolean>(false);
   const [darkMode, setDarkMode] = useState<boolean>(startsDark);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    return readStored(SIDEBAR_COLLAPSED_KEY) === 'true';
+  });
 
-  const [accounts, setAccounts] = useState<Account[]>([]);
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      writeStored(SIDEBAR_COLLAPSED_KEY, String(next));
+      return next;
+    });
+  }, []);
+
+  // Keyboard shortcut Ctrl+B or Cmd+B to toggle navigation sidebar
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        toggleSidebar();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toggleSidebar]);
+
   const [dashboardKpis, setDashboardKpis] = useState<DashboardKpis | null>(null);
   const [trialBalance, setTrialBalance] = useState<{
     items: TrialBalanceItem[];
     totalDebit: number;
     totalCredit: number;
     isBalanced: boolean;
-  } | null>(null);
-
-  // Form state for posting entry
-  const [entryType, setEntryType] = useState<string>('sale');
-  const [debitCode, setDebitCode] = useState<string>('');
-  const [creditCode, setCreditCode] = useState<string>('');
-  const [amount, setAmount] = useState<string>('');
-  const [posting, setPosting] = useState<boolean>(false);
-  const [postFeedback, setPostFeedback] = useState<{
-    type: 'success' | 'error';
-    message: string;
   } | null>(null);
 
   const apiUrl = API_URL;
@@ -211,30 +211,6 @@ const AppShell: React.FC<AppShellProps> = ({ session, onSignOut }) => {
     [apiUrl]
   );
 
-  // Fetch Accounts for active shop
-  const fetchAccounts = useCallback(
-    (shopId?: number) => {
-      const url = shopId
-        ? `${apiUrl}/ledger/accounts?shop_id=${shopId}`
-        : `${apiUrl}/ledger/accounts`;
-      apiFetch(url)
-        .then((res) => (res.ok ? res.json() : []))
-        .then((data: Account[]) => {
-          setAccounts(data);
-          if (data.length >= 2) {
-            const cashOrAsset = data.find((a) => a.type === 'asset');
-            const revOrExpense = data.find(
-              (a) => a.type === 'revenue' || a.type === 'expense'
-            );
-            if (cashOrAsset) setDebitCode(cashOrAsset.code);
-            if (revOrExpense) setCreditCode(revOrExpense.code);
-          }
-        })
-        .catch(() => {});
-    },
-    [apiUrl]
-  );
-
   // Fetch health & shops initially
   useEffect(() => {
     let isMounted = true;
@@ -264,87 +240,11 @@ const AppShell: React.FC<AppShellProps> = ({ session, onSignOut }) => {
     };
   }, [apiUrl, fetchShops]);
 
-  // When activeShop changes, re-fetch TB, accounts, and KPIs
+  // When activeShop changes, re-fetch TB and KPIs
   useEffect(() => {
     fetchTrialBalance(activeShop?.id);
-    fetchAccounts(activeShop?.id);
     fetchDashboardKpis(activeShop?.id);
-  }, [activeShop, fetchTrialBalance, fetchAccounts, fetchDashboardKpis]);
-
-  // Handle post entry
-  const handlePostEntry = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setPostFeedback(null);
-
-    if (!activeShop) {
-      setPostFeedback({
-        type: 'error',
-        message:
-          'Rule 1: Every write requires a shop. Please select a shop from the top bar before posting.',
-      });
-      return;
-    }
-
-    const numAmount = parseFloat(amount);
-    if (!numAmount || numAmount <= 0) {
-      setPostFeedback({
-        type: 'error',
-        message: 'Amount must be greater than zero.',
-      });
-      return;
-    }
-
-    if (!debitCode || !creditCode) {
-      setPostFeedback({
-        type: 'error',
-        message: 'Both Debit and Credit accounts must be selected.',
-      });
-      return;
-    }
-
-    setPosting(true);
-    try {
-      const res = await apiFetch(`${apiUrl}/ledger/entries`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Shop-Id': activeShop.id.toString(),
-        },
-        body: JSON.stringify({
-          entry_type: entryType,
-          client_ref: `web-${Date.now()}`,
-          lines: [
-            { account_code: debitCode, direction: 'debit', amount: numAmount },
-            {
-              account_code: creditCode,
-              direction: 'credit',
-              amount: numAmount,
-            },
-          ],
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to post transaction.');
-      }
-
-      setPostFeedback({
-        type: 'success',
-        message: `Entry posted successfully! ID: ${data.entry_id.substring(0, 8)}... (${data.lines_posted} lines)`,
-      });
-      setAmount('');
-      fetchTrialBalance(activeShop.id);
-      fetchDashboardKpis(activeShop.id);
-    } catch (err: any) {
-      setPostFeedback({
-        type: 'error',
-        message: err.message || 'Failed to post entry.',
-      });
-    } finally {
-      setPosting(false);
-    }
-  };
+  }, [activeShop, fetchTrialBalance, fetchDashboardKpis]);
 
   return (
     <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text flex flex-col antialiased">
@@ -358,10 +258,17 @@ const AppShell: React.FC<AppShellProps> = ({ session, onSignOut }) => {
         isAdmin={isAdmin}
         userName={user.name}
         onSignOut={onSignOut}
+        sidebarCollapsed={sidebarCollapsed}
+        onToggleSidebar={toggleSidebar}
       />
 
       <div className="flex-1 flex overflow-hidden">
-        <Sidebar activeTab={activeTab} onSelectTab={setActiveTab} />
+        <Sidebar
+          activeTab={activeTab}
+          onSelectTab={setActiveTab}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={toggleSidebar}
+        />
 
         {activeTab === 'pos' ? (
           <main className="flex-1 overflow-hidden">
@@ -379,41 +286,6 @@ const AppShell: React.FC<AppShellProps> = ({ session, onSignOut }) => {
           </main>
         ) : (
           <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6 space-y-6 max-w-7xl mx-auto w-full">
-            {/* Header banner with active shop indicator */}
-            <div className="bg-light-surface dark:bg-dark-surface p-4 md:p-6 rounded-2xl border border-light-border dark:border-dark-border shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div>
-                <div className="flex items-center space-x-2">
-                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-primary/10 text-primary dark:text-primary-tint">
-                    {activeShop ? `Active Shop: ${activeShop.name}` : 'Company-Wide (All Shops)'}
-                  </span>
-                  <span className="text-xs text-light-text-muted dark:text-dark-text-muted">
-                    Rule 1: Every record belongs to a shop
-                  </span>
-                </div>
-                <h2 className="text-lg md:text-xl font-bold mt-1">Multi-Shop POS, Stock & Ledger</h2>
-                <p className="text-xs text-light-text-muted dark:text-dark-text-muted">
-                  Daily Screens: POS Terminal, Shop Expenses, Size Stock & Bulk Import
-                </p>
-              </div>
-
-              <div className="flex items-center space-x-3">
-                <div className="flex items-center space-x-2 bg-light-surface-hover dark:bg-dark-surface-hover px-3 py-1.5 rounded-xl border border-light-border dark:border-dark-border">
-                  <Server className="w-4 h-4 text-light-text-muted dark:text-dark-text-muted" />
-                  <span className="text-xs font-semibold" data-testid="api-status">
-                    {loading ? 'Checking...' : error ? 'Offline' : `API: ${health?.status}`}
-                  </span>
-                </div>
-                <div className="flex items-center space-x-2 bg-light-surface-hover dark:bg-dark-surface-hover px-3 py-1.5 rounded-xl border border-light-border dark:border-dark-border">
-                  <Database className="w-4 h-4 text-light-text-muted dark:text-dark-text-muted" />
-                  <span className="text-xs font-semibold" data-testid="migration-number">
-                    {loading ? '...' : `v${health?.migration ?? 0}`}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Tab 1: POS is handled above */}
-
             {/* Tab: Return & Exchange (Step 4) */}
             {activeTab === 'returns' && (
               <ReturnsView
@@ -514,267 +386,32 @@ const AppShell: React.FC<AppShellProps> = ({ session, onSignOut }) => {
               <UsersView apiUrl={apiUrl} shops={shops} />
             )}
 
-            {/* Tab 6: Shop Management */}
+            {/* Shop Management */}
             {activeTab === 'settings' && (
               <ShopsView shops={shops} onRefreshShops={fetchShops} apiUrl={apiUrl} />
             )}
 
-            {/* Tab 7: Pagination & Data Table Queue Demo */}
+            {/* Hidden fallback for pagination test */}
             {activeTab === 'pagination-demo' && (
               <DataTableExample />
             )}
 
-          {/* Default Tab: Dashboard & Ledger (activeTab === 'dashboard' || activeTab === 'ledger') */}
-          {(activeTab === 'dashboard' || activeTab === 'ledger') && (
-            <>
-              {/* KPI Row (Section 5.4: Shop-level reporting in SQL, numbers first, tabular figures) */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                <div className="bg-light-surface dark:bg-dark-surface p-4 rounded-xl border border-light-border dark:border-dark-border">
-                  <span className="text-xs font-semibold text-light-text-muted dark:text-dark-text-muted">
-                    {activeShop ? 'Shop Status' : 'Active Shops'}
-                  </span>
-                  <div className="text-xl md:text-2xl font-extrabold mt-1 font-mono">
-                    {activeShop ? activeShop.code : `${dashboardKpis?.total_shops ?? shops.length} Shops`}
-                  </div>
-                </div>
+            {/* Default Tab: Dashboard */}
+            {activeTab === 'dashboard' && (
+              <DashboardView
+                apiUrl={apiUrl}
+                activeShop={activeShop}
+                shops={shops}
+                dashboardKpis={dashboardKpis}
+                onNavigateTab={setActiveTab}
+                permissions={permissions}
+                onSelectShop={selectShop}
+              />
+            )}
 
-                <div className="bg-light-surface dark:bg-dark-surface p-4 rounded-xl border border-light-border dark:border-dark-border">
-                  <span className="text-xs font-semibold text-light-text-muted dark:text-dark-text-muted">
-                    Stock Value (Cost)
-                  </span>
-                  <div className="text-xl md:text-2xl font-extrabold mt-1 font-mono text-primary dark:text-primary-tint">
-                    ৳{(dashboardKpis?.stock_value ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                  </div>
-                </div>
-
-                <div className="bg-light-surface dark:bg-dark-surface p-4 rounded-xl border border-light-border dark:border-dark-border">
-                  <span className="text-xs font-semibold text-light-text-muted dark:text-dark-text-muted">
-                    Transfers In Transit
-                  </span>
-                  <div className="text-xl md:text-2xl font-extrabold mt-1 font-mono text-warning">
-                    {dashboardKpis?.pending_transfers ?? 0}
-                  </div>
-                </div>
-
-                <div className="bg-light-surface dark:bg-dark-surface p-4 rounded-xl border border-light-border dark:border-dark-border">
-                  <span className="text-xs font-semibold text-light-text-muted dark:text-dark-text-muted">
-                    Trial Balance
-                  </span>
-                  <div
-                    className={`text-xl md:text-2xl font-extrabold mt-1 font-mono ${
-                      trialBalance?.isBalanced !== false ? 'text-success' : 'text-danger'
-                    }`}
-                  >
-                    {trialBalance?.isBalanced !== false ? 'Balanced' : 'Unbalanced'}
-                  </div>
-                </div>
-              </div>
-
-              {permissions.includes('till.view') && (
-                <CashInHandCard
-                  activeShop={activeShop}
-                  apiUrl={apiUrl}
-                  refreshKey={dashboardKpis}
-                  onOpenTill={() => setActiveTab('cash-closing')}
-                />
-              )}
-
-              {/* Quick Actions Grid for Fast Navigation on all devices */}
-              <div className="bg-light-surface dark:bg-dark-surface p-4 rounded-2xl border border-light-border dark:border-dark-border shadow-sm space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-xs uppercase tracking-wider text-light-text-muted dark:text-dark-text-muted">
-                    Daily Operations Quick Launch
-                  </h3>
-                  <span className="text-[10px] text-primary dark:text-primary-tint font-bold">
-                    Active: {activeShop?.name || 'All Shops'}
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
-                  <button
-                    type="button"
-                    data-testid="quick-nav-pos"
-                    onClick={() => setActiveTab('pos')}
-                    className="p-3 rounded-xl border border-light-border dark:border-dark-border bg-light-surface-hover dark:bg-dark-surface-hover hover:border-primary flex flex-col items-center justify-center space-y-1 transition-all"
-                  >
-                    <ShoppingCart className="w-5 h-5 text-primary dark:text-primary-tint" />
-                    <span className="text-xs font-bold">Sell / POS</span>
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="quick-nav-returns"
-                    onClick={() => setActiveTab('returns')}
-                    className="p-3 rounded-xl border border-light-border dark:border-dark-border bg-light-surface-hover dark:bg-dark-surface-hover hover:border-primary flex flex-col items-center justify-center space-y-1 transition-all"
-                  >
-                    <RotateCcw className="w-5 h-5 text-primary dark:text-primary-tint" />
-                    <span className="text-xs font-bold">Return/Swap</span>
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="quick-nav-courier"
-                    onClick={() => setActiveTab('courier')}
-                    className="p-3 rounded-xl border border-light-border dark:border-dark-border bg-light-surface-hover dark:bg-dark-surface-hover hover:border-primary flex flex-col items-center justify-center space-y-1 transition-all"
-                  >
-                    <Truck className="w-5 h-5 text-primary dark:text-primary-tint" />
-                    <span className="text-xs font-bold">Courier</span>
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="quick-nav-cash-closing"
-                    onClick={() => setActiveTab('cash-closing')}
-                    className="p-3 rounded-xl border border-light-border dark:border-dark-border bg-light-surface-hover dark:bg-dark-surface-hover hover:border-primary flex flex-col items-center justify-center space-y-1 transition-all"
-                  >
-                    <Banknote className="w-5 h-5 text-primary dark:text-primary-tint" />
-                    <span className="text-xs font-bold">Till</span>
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="quick-nav-products"
-                    onClick={() => setActiveTab('products')}
-                    className="p-3 rounded-xl border border-light-border dark:border-dark-border bg-light-surface-hover dark:bg-dark-surface-hover hover:border-primary flex flex-col items-center justify-center space-y-1 transition-all"
-                  >
-                    <Package className="w-5 h-5 text-primary dark:text-primary-tint" />
-                    <span className="text-xs font-bold">Stock Grid</span>
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="quick-nav-expenses"
-                    onClick={() => setActiveTab('expenses')}
-                    className="p-3 rounded-xl border border-light-border dark:border-dark-border bg-light-surface-hover dark:bg-dark-surface-hover hover:border-primary flex flex-col items-center justify-center space-y-1 transition-all"
-                  >
-                    <DollarSign className="w-5 h-5 text-primary dark:text-primary-tint" />
-                    <span className="text-xs font-bold">Expenses</span>
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="quick-nav-transfers"
-                    onClick={() => setActiveTab('transfers')}
-                    className="p-3 rounded-xl border border-light-border dark:border-dark-border bg-light-surface-hover dark:bg-dark-surface-hover hover:border-primary flex flex-col items-center justify-center space-y-1 transition-all"
-                  >
-                    <ArrowLeftRight className="w-5 h-5 text-primary dark:text-primary-tint" />
-                    <span className="text-xs font-bold">Transfers</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Interactive Ledger Posting Card (Prove Rule 1 & Rule 3) */}
-              {permissions.includes('ledger.post') && (
-              <div className="bg-light-surface dark:bg-dark-surface rounded-2xl border border-light-border dark:border-dark-border p-4 md:p-6 shadow-sm space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <PlusCircle className="w-5 h-5 text-primary dark:text-primary-tint" />
-                    <h3 className="font-bold text-sm md:text-base">Record Balanced Ledger Entry</h3>
-                  </div>
-                  <span className="text-xs text-light-text-muted dark:text-dark-text-muted">
-                    Rule 3: One Posting Function
-                  </span>
-                </div>
-
-                {postFeedback && (
-                  <div
-                    className={`p-3 rounded-xl text-xs flex items-center space-x-2 ${
-                      postFeedback.type === 'success'
-                        ? 'bg-success/10 text-success-text-light dark:text-success'
-                        : 'bg-danger/10 text-danger-text-light dark:text-danger'
-                    }`}
-                  >
-                    {postFeedback.type === 'success' ? (
-                      <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-                    ) : (
-                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                    )}
-                    <span>{postFeedback.message}</span>
-                  </div>
-                )}
-
-                <form onSubmit={handlePostEntry} className="grid grid-cols-1 md:grid-cols-5 gap-3 md:gap-4 items-end">
-                  <div>
-                    <label className="block text-xs font-semibold text-light-text-muted dark:text-dark-text-muted mb-1">
-                      Entry Type
-                    </label>
-                    <select
-                      value={entryType}
-                      onChange={(e) => setEntryType(e.target.value)}
-                      className="w-full h-11 px-3 rounded-xl text-xs bg-light-surface-hover dark:bg-dark-surface-hover border border-light-border dark:border-dark-border text-light-text dark:text-dark-text focus:outline-none focus:ring-2 focus:ring-focus-ring font-semibold"
-                    >
-                      <option value="sale">Sale (Revenue)</option>
-                      <option value="cogs">COGS Recognition</option>
-                      <option value="expense">Operating Expense</option>
-                      <option value="advance">Customer Advance</option>
-                      <option value="equity">Owner Equity</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-light-text-muted dark:text-dark-text-muted mb-1">
-                      Debit Account (Dr)
-                    </label>
-                    <select
-                      value={debitCode}
-                      onChange={(e) => setDebitCode(e.target.value)}
-                      className="w-full h-11 px-3 rounded-xl text-xs bg-light-surface-hover dark:bg-dark-surface-hover border border-light-border dark:border-dark-border text-light-text dark:text-dark-text focus:outline-none focus:ring-2 focus:ring-focus-ring"
-                    >
-                      <option value="">Select Account</option>
-                      {accounts.map((a) => (
-                        <option key={a.code} value={a.code}>
-                          {a.code} - {a.name} ({a.type})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-light-text-muted dark:text-dark-text-muted mb-1">
-                      Credit Account (Cr)
-                    </label>
-                    <select
-                      value={creditCode}
-                      onChange={(e) => setCreditCode(e.target.value)}
-                      className="w-full h-11 px-3 rounded-xl text-xs bg-light-surface-hover dark:bg-dark-surface-hover border border-light-border dark:border-dark-border text-light-text dark:text-dark-text focus:outline-none focus:ring-2 focus:ring-focus-ring"
-                    >
-                      <option value="">Select Account</option>
-                      {accounts.map((a) => (
-                        <option key={a.code} value={a.code}>
-                          {a.code} - {a.name} ({a.type})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-light-text-muted dark:text-dark-text-muted mb-1">
-                      Amount (৳)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      placeholder="e.g. 500"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      className="w-full h-11 px-3 rounded-xl text-xs font-mono bg-light-surface-hover dark:bg-dark-surface-hover border border-light-border dark:border-dark-border text-light-text dark:text-dark-text focus:outline-none focus:ring-2 focus:ring-focus-ring"
-                    />
-                  </div>
-
-                  <div>
-                    <button
-                      type="submit"
-                      disabled={posting}
-                      className="w-full h-11 px-4 rounded-xl text-xs font-bold bg-primary text-on-primary hover:bg-primary-hover transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center space-x-1.5"
-                    >
-                      {posting ? (
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <>
-                          <PlusCircle className="w-4 h-4" />
-                          <span>Post Balanced Entry</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </form>
-              </div>
-              )}
-
+            {/* Financial Statements (Trial Balance - Rule 3) */}
+            {activeTab === 'ledger' && (
+            <div className="space-y-6">
               {/* Ledger & Trial Balance Live Table */}
               <div className="bg-light-surface dark:bg-dark-surface rounded-2xl border border-light-border dark:border-dark-border p-4 md:p-6 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
@@ -822,8 +459,30 @@ const AppShell: React.FC<AppShellProps> = ({ session, onSignOut }) => {
                   </table>
                 </div>
               </div>
-            </>
-          )}
+            </div>
+            )}
+            {/* Discreet System Status Footer */}
+            <footer className="pt-6 pb-2 text-[11px] text-light-text-muted dark:text-dark-text-muted border-t border-light-border/40 dark:border-dark-border/40 flex flex-col sm:flex-row items-center justify-between gap-2">
+              <div className="flex items-center space-x-1.5">
+                <span className="font-semibold text-light-text dark:text-dark-text">AR Option Retail Ledger</span>
+                <span>•</span>
+                <span>Multi-branch Retail Operations</span>
+              </div>
+              <div className="flex items-center space-x-3 font-mono text-[10px]">
+                <div className="flex items-center space-x-1 opacity-70 hover:opacity-100 transition-opacity">
+                  <Server className="w-3 h-3 text-light-text-muted dark:text-dark-text-muted" />
+                  <span data-testid="api-status">
+                    {loading ? 'Checking...' : error ? 'Offline' : `API: ${health?.status}`}
+                  </span>
+                </div>
+                <div className="flex items-center space-x-1 opacity-70 hover:opacity-100 transition-opacity">
+                  <Database className="w-3 h-3 text-light-text-muted dark:text-dark-text-muted" />
+                  <span data-testid="migration-number">
+                    {loading ? '...' : `v${health?.migration ?? 0}`}
+                  </span>
+                </div>
+              </div>
+            </footer>
         </main>
         )}
       </div>

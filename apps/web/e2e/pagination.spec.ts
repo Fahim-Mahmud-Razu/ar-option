@@ -9,6 +9,14 @@ test.describe('Pagination Control System E2E Tests', () => {
     });
 
     // Mock API routes needed for AppShell
+    await page.route('http://localhost:3000/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    });
+
     await page.route('**/auth/me', async (route) => {
       await route.fulfill({
         status: 200,
