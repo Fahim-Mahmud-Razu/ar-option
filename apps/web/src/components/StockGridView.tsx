@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Package, RefreshCw, Layers } from 'lucide-react';
-import type { StockByShopGridItem } from '@ar-option/shared-types';
+import { Package, RefreshCw, Layers, UploadCloud, Grid } from 'lucide-react';
+import { ImportProductsView } from './ImportProductsView';
+import type { Shop, StockByShopGridItem } from '@ar-option/shared-types';
 
 interface StockGridViewProps {
   apiUrl: string;
+  activeShop?: Shop | null;
 }
 
-export const StockGridView: React.FC<StockGridViewProps> = ({ apiUrl }) => {
+export const StockGridView: React.FC<StockGridViewProps> = ({ apiUrl, activeShop }) => {
+  const [activeSubTab, setActiveSubTab] = useState<'grid' | 'import'>('grid');
   const [gridItems, setGridItems] = useState<StockByShopGridItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedSizeIndex, setSelectedSizeIndex] = useState<number>(0);
@@ -28,38 +31,88 @@ export const StockGridView: React.FC<StockGridViewProps> = ({ apiUrl }) => {
 
   return (
     <div className="space-y-6">
+      {/* View Header with Sub-tab Switcher */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-lg md:text-xl font-bold flex items-center space-x-2">
             <Layers className="w-5 h-5 text-primary dark:text-primary-tint" />
-            <span>Stock by Shop Grid</span>
+            <span>Products & Inventory</span>
           </h2>
           <p className="text-xs text-light-text-muted dark:text-dark-text-muted mt-0.5">
             Rule 4: Stock tracked per size across retail branches and in-transit locations
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={fetchStockGrid}
-          className="h-10 px-3 rounded-xl text-xs font-semibold bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border hover:bg-light-surface-hover dark:hover:bg-dark-surface-hover flex items-center space-x-1.5 self-start sm:self-auto"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          <span>Refresh Stock</span>
-        </button>
+        <div className="flex items-center space-x-2">
+          {/* Sub tabs */}
+          <div className="flex p-1 rounded-xl bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border text-xs">
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('grid')}
+              className={`px-3 py-1.5 rounded-lg font-bold flex items-center space-x-1.5 transition-colors ${
+                activeSubTab === 'grid'
+                  ? 'bg-primary text-on-primary shadow-sm'
+                  : 'text-light-text-muted hover:text-light-text'
+              }`}
+            >
+              <Grid className="w-3.5 h-3.5" />
+              <span>Stock Grid</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('import')}
+              className={`px-3 py-1.5 rounded-lg font-bold flex items-center space-x-1.5 transition-colors ${
+                activeSubTab === 'import'
+                  ? 'bg-primary text-on-primary shadow-sm'
+                  : 'text-light-text-muted hover:text-light-text'
+              }`}
+            >
+              <UploadCloud className="w-3.5 h-3.5" />
+              <span>Bulk Import</span>
+            </button>
+          </div>
+
+          {activeSubTab === 'grid' && (
+            <button
+              type="button"
+              onClick={fetchStockGrid}
+              className="h-10 px-3 rounded-xl text-xs font-semibold bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border hover:bg-light-surface-hover dark:hover:bg-dark-surface-hover flex items-center space-x-1.5 self-start sm:self-auto"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+          )}
+        </div>
       </div>
 
-      {loading ? (
+      {activeSubTab === 'import' ? (
+        <ImportProductsView
+          apiUrl={apiUrl}
+          activeShop={activeShop || null}
+          onImportComplete={() => {
+            fetchStockGrid();
+            setActiveSubTab('grid');
+          }}
+        />
+      ) : loading ? (
         <div className="py-12 text-center text-xs text-light-text-muted dark:text-dark-text-muted">
           Loading stock counts across shops...
         </div>
       ) : gridItems.length === 0 ? (
-        <div className="bg-light-surface dark:bg-dark-surface p-8 rounded-2xl border border-light-border dark:border-dark-border text-center space-y-2">
+        <div className="bg-light-surface dark:bg-dark-surface p-8 rounded-2xl border border-light-border dark:border-dark-border text-center space-y-3">
           <Package className="w-8 h-8 text-light-text-muted dark:text-dark-text-muted mx-auto opacity-50" />
           <div className="text-sm font-semibold">No stock records found</div>
-          <div className="text-xs text-light-text-muted dark:text-dark-text-muted">
-            Add products and record stock transfers or purchases to view inventory by shop.
+          <div className="text-xs text-light-text-muted dark:text-dark-text-muted max-w-sm mx-auto">
+            Get started by bulk importing your product catalog with size variations.
           </div>
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('import')}
+            className="h-10 px-4 rounded-xl bg-primary text-on-primary text-xs font-bold inline-flex items-center space-x-1.5 shadow-sm"
+          >
+            <UploadCloud className="w-4 h-4" />
+            <span>Import Products Now</span>
+          </button>
         </div>
       ) : (
         <>
@@ -76,92 +129,132 @@ export const StockGridView: React.FC<StockGridViewProps> = ({ apiUrl }) => {
               >
                 {gridItems.map((item, idx) => (
                   <option key={item.variation_id} value={idx}>
-                    {item.product_name} - Size {item.size} ({item.sku})
+                    {item.product_name} - {item.size} ({item.sku})
                   </option>
                 ))}
               </select>
+            </div>
 
-              {gridItems[selectedSizeIndex] && (
-                <div className="pt-2 border-t border-light-border dark:border-dark-border space-y-2">
-                  <div className="text-xs font-bold text-primary dark:text-primary-tint">
-                    {gridItems[selectedSizeIndex].product_name} • Size {gridItems[selectedSizeIndex].size}
+            {gridItems[selectedSizeIndex] && (
+              <div className="bg-light-surface dark:bg-dark-surface rounded-xl border border-light-border dark:border-dark-border overflow-hidden">
+                <div className="p-4 border-b border-light-border dark:border-dark-border">
+                  <div className="text-xs font-mono text-light-text-muted dark:text-dark-text-muted uppercase">
+                    {gridItems[selectedSizeIndex].product_code}
                   </div>
-                  <div className="divide-y divide-light-border dark:divide-dark-border">
-                    {gridItems[selectedSizeIndex].stocks.map((s) => (
-                      <div key={s.location_id} className="py-2.5 flex items-center justify-between text-xs">
-                        <div>
-                          <div className="font-semibold">{s.location_name}</div>
-                          <div className="text-[10px] text-light-text-muted dark:text-dark-text-muted">
-                            {s.is_system ? 'System Location' : s.location_code}
-                          </div>
-                        </div>
-                        <span className={`font-mono font-bold text-sm ${s.qty > 0 ? 'text-primary dark:text-primary-tint' : 'text-light-text-muted dark:text-dark-text-muted'}`}>
-                          {s.qty} pcs
-                        </span>
-                      </div>
-                    ))}
+                  <h3 className="font-bold text-sm mt-0.5">
+                    {gridItems[selectedSizeIndex].product_name}
+                  </h3>
+                  <div className="flex items-center space-x-2 mt-2">
+                    <span className="text-xs font-bold px-2 py-0.5 rounded bg-primary/10 text-primary dark:text-primary-tint">
+                      Size: {gridItems[selectedSizeIndex].size}
+                    </span>
+                    <span className="text-xs font-mono text-light-text-muted">
+                      Selling: ৳{gridItems[selectedSizeIndex].selling_price.toFixed(2)}
+                    </span>
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
 
-          {/* Tablet & Desktop: Matrix Table with Sticky First Column (DESIGN.md line 548) */}
-          <div className="hidden md:block bg-light-surface dark:bg-dark-surface rounded-2xl border border-light-border dark:border-dark-border overflow-x-auto shadow-sm">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-light-surface-hover dark:bg-dark-surface-hover border-b border-light-border dark:border-dark-border text-light-text-muted dark:text-dark-text-muted uppercase tracking-wider font-semibold">
-                <tr>
-                  <th className="py-3 px-4 sticky left-0 bg-light-surface-hover dark:bg-dark-surface-hover z-10 min-w-[220px]">
-                    Product / Size
-                  </th>
-                  <th className="py-3 px-3">SKU</th>
-                  <th className="py-3 px-3 text-right">Cost (৳)</th>
-                  <th className="py-3 px-3 text-right">Sell (৳)</th>
-                  {gridItems[0]?.stocks.map((loc) => (
-                    <th key={loc.location_id} className="py-3 px-4 text-right min-w-[110px]">
-                      {loc.location_name}
-                    </th>
-                  ))}
-                  <th className="py-3 px-4 text-right font-bold min-w-[100px]">Total Stock</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-light-border dark:divide-dark-border">
-                {gridItems.map((item) => {
-                  const totalStock = item.stocks.reduce((acc, s) => acc + s.qty, 0);
-
-                  return (
-                    <tr key={item.variation_id} className="hover:bg-light-surface-hover dark:hover:bg-dark-surface-hover">
-                      <td className="py-3 px-4 sticky left-0 bg-light-surface dark:bg-dark-surface hover:bg-light-surface-hover dark:hover:bg-dark-surface-hover z-10 font-medium">
-                        <div className="font-bold">{item.product_name}</div>
-                        <div className="text-[11px] text-primary dark:text-primary-tint">Size: {item.size}</div>
-                      </td>
-                      <td className="py-3 px-3 font-mono text-[11px] text-light-text-muted dark:text-dark-text-muted">
-                        {item.sku}
-                      </td>
-                      <td className="py-3 px-3 text-right font-mono">
-                        ৳{item.cost_price.toFixed(2)}
-                      </td>
-                      <td className="py-3 px-3 text-right font-mono font-semibold">
-                        ৳{item.selling_price.toFixed(2)}
-                      </td>
-                      {item.stocks.map((s) => (
-                        <td
-                          key={s.location_id}
-                          className={`py-3 px-4 text-right font-mono ${
-                            s.qty > 0 ? 'font-bold text-light-text dark:text-dark-text' : 'text-light-text-muted dark:text-dark-text-muted opacity-40'
+                <div className="divide-y divide-light-border dark:divide-dark-border">
+                  {gridItems[selectedSizeIndex].stocks.map((loc) => (
+                    <div
+                      key={loc.location_id}
+                      className="p-3.5 flex items-center justify-between text-xs"
+                    >
+                      <div>
+                        <div className="font-semibold">{loc.location_name}</div>
+                        <div className="text-[10px] text-light-text-muted font-mono">
+                          {loc.location_code} {loc.is_system ? '(System Location)' : ''}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span
+                          className={`font-mono font-extrabold text-sm ${
+                            loc.qty > 0
+                              ? 'text-primary dark:text-primary-tint'
+                              : 'text-light-text-muted dark:text-dark-text-muted'
                           }`}
                         >
-                          {s.qty > 0 ? s.qty : '-'}
+                          {loc.qty}
+                        </span>
+                        <span className="text-[10px] text-light-text-muted block">available</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Tablet & Desktop: Matrix Table (DESIGN.md line 548) */}
+          <div className="hidden md:block bg-light-surface dark:bg-dark-surface rounded-2xl border border-light-border dark:border-dark-border shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs font-sans">
+                <thead>
+                  <tr className="border-b border-light-border dark:border-dark-border text-light-text-muted dark:text-dark-text-muted uppercase tracking-wider">
+                    <th className="sticky left-0 bg-light-surface dark:bg-dark-surface py-3 px-4 font-semibold z-10 border-r border-light-border dark:border-dark-border min-w-[200px]">
+                      Product & Size
+                    </th>
+                    <th className="py-3 px-3 font-semibold text-right">Selling (৳)</th>
+                    {gridItems[0]?.stocks.map((loc) => (
+                      <th
+                        key={loc.location_id}
+                        className="py-3 px-4 font-semibold text-center min-w-[100px]"
+                      >
+                        <div>{loc.location_name}</div>
+                        <div className="text-[10px] font-mono text-light-text-muted font-normal">
+                          {loc.location_code}
+                        </div>
+                      </th>
+                    ))}
+                    <th className="py-3 px-4 font-semibold text-center bg-light-surface-hover/50 dark:bg-dark-surface-hover/50 min-w-[90px]">
+                      Total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-light-border dark:divide-dark-border font-mono">
+                  {gridItems.map((item) => {
+                    const rowTotal = item.stocks.reduce(
+                      (sum, s) => sum + s.qty,
+                      0
+                    );
+                    return (
+                      <tr
+                        key={item.variation_id}
+                        className="hover:bg-light-surface-hover dark:hover:bg-dark-surface-hover"
+                      >
+                        <td className="sticky left-0 bg-light-surface dark:bg-dark-surface py-3 px-4 font-sans border-r border-light-border dark:border-dark-border">
+                          <div className="font-bold text-xs">{item.product_name}</div>
+                          <div className="text-[11px] text-light-text-muted flex items-center space-x-1.5 font-mono">
+                            <span className="font-bold text-primary dark:text-primary-tint">
+                              [{item.size}]
+                            </span>
+                            <span>{item.sku}</span>
+                          </div>
                         </td>
-                      ))}
-                      <td className="py-3 px-4 text-right font-mono font-extrabold text-primary dark:text-primary-tint">
-                        {totalStock}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        <td className="py-3 px-3 text-right">
+                          ৳{item.selling_price.toFixed(2)}
+                        </td>
+                        {item.stocks.map((s) => (
+                          <td
+                            key={s.location_id}
+                            className={`py-3 px-4 text-center font-bold ${
+                              s.qty > 0
+                                ? 'text-light-text dark:text-dark-text'
+                                : 'text-light-text-muted/40 dark:text-dark-text-muted/40 font-normal'
+                            }`}
+                          >
+                            {s.qty}
+                          </td>
+                        ))}
+                        <td className="py-3 px-4 text-center font-extrabold text-primary dark:text-primary-tint bg-light-surface-hover/30 dark:bg-dark-surface-hover/30">
+                          {rowTotal}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       )}

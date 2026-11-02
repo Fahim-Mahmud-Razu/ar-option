@@ -7,7 +7,7 @@ import {
 import { Pool } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { StockMovementService } from './stock-movement.service';
-import { Product, ProductVariation } from '@ar-option/shared-types';
+import { Product, ProductVariation, BulkImportProductDto } from '@ar-option/shared-types';
 
 export interface CreateProductDto {
   name: string;
@@ -163,6 +163,68 @@ export class ProductsService {
       notes: 'Initial stock intake',
       user_id: userId,
     });
+  }
+
+  /**
+   * Bulk Product & Stock Import with Shop Stamping (Rule 1 & Rule 4)
+   */
+  async bulkImportProducts(
+    items: BulkImportProductDto[],
+    userId?: number
+  ): Promise<{ imported_count: number; items: Product[] }> {
+    if (!items || items.length === 0) {
+      throw new BadRequestException('Import payload must contain at least one product.');
+    }
+
+    const imported: Product[] = [];
+
+    // Pre-cache shop codes
+    const locRes = await this.pool.query('SELECT id, code FROM locations WHERE is_active = true');
+    const shopCodeMap = new Map<string, number>();
+    for (const l of locRes.rows) {
+      shopCodeMap.set(l.code.toUpperCase(), l.id);
+    }
+
+    for (const item of items) {
+      const product = await this.createProduct({
+        name: item.name,
+        code: item.code,
+        category_name: item.category_name,
+        brand_name: item.brand_name,
+        cost_price: item.cost_price,
+        selling_price: item.selling_price,
+        sizes: item.sizes,
+      });
+
+      // Handle initial stock per shop
+      if (item.initial_stock && item.initial_stock.length > 0) {
+        for (const stockEntry of item.initial_stock) {
+          const locId = shopCodeMap.get(stockEntry.shop_code.toUpperCase());
+          if (!locId) {
+            continue; // skip invalid shop code or log
+          }
+
+          const matchedVar = product.variations?.find(
+            (v) => v.size.toLowerCase() === stockEntry.size.toLowerCase()
+          );
+          if (matchedVar && stockEntry.quantity > 0) {
+            await this.addInitialStock(
+              matchedVar.id,
+              locId,
+              stockEntry.quantity,
+              userId
+            );
+          }
+        }
+      }
+
+      imported.push(product);
+    }
+
+    return {
+      imported_count: imported.length,
+      items: imported,
+    };
   }
 }
 

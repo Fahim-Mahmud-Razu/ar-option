@@ -47,6 +47,9 @@ describe('Foundation: Ledger, Shop Guard & API Permissions (e2e)', () => {
     pool = app.get<Pool>(PG_POOL);
 
     // Clean test tables
+    await pool.query('DELETE FROM sale_items');
+    await pool.query('DELETE FROM sales');
+    await pool.query('DELETE FROM expenses');
     await pool.query('DELETE FROM stock_transfer_items');
     await pool.query('DELETE FROM stock_transfers');
     await pool.query('DELETE FROM stock_movements');

@@ -1,14 +1,13 @@
 import React from 'react';
 import {
   LayoutDashboard,
-  Users,
-  Package,
   ShoppingCart,
-  Truck,
+  Package,
   DollarSign,
-  Scale,
-  Settings,
   ArrowLeftRight,
+  Store,
+  Users,
+  Scale,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -19,20 +18,19 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'users', label: 'User Management', icon: Users },
-    { id: 'products', label: 'Products & Stock', icon: Package },
     { id: 'pos', label: 'Sell / POS', icon: ShoppingCart },
+    { id: 'products', label: 'Products & Stock', icon: Package },
+    { id: 'expenses', label: 'Daily Expenses', icon: DollarSign },
     { id: 'transfers', label: 'Stock Transfers', icon: ArrowLeftRight },
-    { id: 'courier', label: 'Courier & Settlement', icon: Truck },
-    { id: 'expenses', label: 'Expenses', icon: DollarSign },
+    { id: 'users', label: 'User Management', icon: Users },
+    { id: 'settings', label: 'Shop Management', icon: Store },
     { id: 'ledger', label: 'Financial Statements', icon: Scale },
-    { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
   return (
     <>
       {/* Tablet 64px Rail */}
-      <aside className="hidden md:flex lg:hidden w-16 bg-light-surface dark:bg-dark-surface border-r border-light-border dark:border-dark-border flex-col items-center py-4 space-y-4">
+      <aside className="hidden md:flex lg:hidden w-16 bg-light-surface dark:bg-dark-surface border-r border-light-border dark:border-dark-border flex-col items-center py-4 space-y-3">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -48,6 +46,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
               }`}
               title={item.label}
               aria-label={item.label}
+              data-testid={`tablet-nav-${item.id}`}
             >
               <Icon className="w-5 h-5" />
             </button>
@@ -73,6 +72,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
                   ? 'bg-primary text-on-primary shadow-sm'
                   : 'text-light-text-muted dark:text-dark-text-muted hover:bg-light-surface-hover dark:hover:bg-dark-surface-hover hover:text-light-text dark:hover:text-dark-text'
               }`}
+              data-testid={`desktop-nav-${item.id}`}
             >
               <Icon className="w-4 h-4" />
               <span>{item.label}</span>
@@ -83,4 +83,3 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
     </>
   );
 };
-

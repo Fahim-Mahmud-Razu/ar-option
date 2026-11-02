@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Layers, ArrowLeftRight, Store, Users } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Layers, DollarSign, ArrowLeftRight } from 'lucide-react';
 
 interface BottomTabsProps {
   activeTab: string;
@@ -7,12 +7,17 @@ interface BottomTabsProps {
 }
 
 export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, onSelectTab }) => {
+  // DESIGN.md line 529: Bottom tabs are hidden during a sale / in POS
+  if (activeTab === 'pos') {
+    return null;
+  }
+
   const tabs = [
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+    { id: 'pos', label: 'POS', icon: ShoppingCart },
     { id: 'products', label: 'Stock', icon: Layers },
+    { id: 'expenses', label: 'Expenses', icon: DollarSign },
     { id: 'transfers', label: 'Transfers', icon: ArrowLeftRight },
-    { id: 'settings', label: 'Shops', icon: Store },
-    { id: 'users', label: 'Users', icon: Users },
   ];
 
   return (
@@ -28,6 +33,7 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, onSelectTab }
           <button
             key={tab.id}
             type="button"
+            data-testid={`mobile-nav-${tab.id}`}
             onClick={() => onSelectTab(tab.id)}
             className={`flex flex-col items-center justify-center w-14 py-1 rounded-lg transition-colors ${
               isActive
@@ -43,4 +49,3 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, onSelectTab }
     </nav>
   );
 };
-

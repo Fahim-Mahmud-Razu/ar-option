@@ -57,6 +57,9 @@ describe('Multi-Shop, Transfers & Stock Movement (e2e)', () => {
     stockMovementService = app.get<StockMovementService>(StockMovementService);
 
     // Clean test tables
+    await pool.query('DELETE FROM sale_items');
+    await pool.query('DELETE FROM sales');
+    await pool.query('DELETE FROM expenses');
     await pool.query('DELETE FROM stock_transfer_items');
     await pool.query('DELETE FROM stock_transfers');
     await pool.query('DELETE FROM stock_movements');
@@ -66,6 +69,7 @@ describe('Multi-Shop, Transfers & Stock Movement (e2e)', () => {
     await pool.query('DELETE FROM account_transactions');
     await pool.query('DELETE FROM user_locations');
     await pool.query('DELETE FROM users');
+    await pool.query("DELETE FROM accounts WHERE code LIKE 'CASH_%'");
     await pool.query("DELETE FROM locations WHERE is_system = false");
 
     // Fetch transit location ID

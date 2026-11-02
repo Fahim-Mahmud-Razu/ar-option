@@ -15,6 +15,8 @@ import { TransfersView } from './components/TransfersView';
 import { ShopsView } from './components/ShopsView';
 import { StockGridView } from './components/StockGridView';
 import { UsersView } from './components/UsersView';
+import { PosView } from './components/PosView';
+import { ExpensesView } from './components/ExpensesView';
 import type {
   HealthResponse,
   Shop,
@@ -262,59 +264,85 @@ export const App: React.FC = () => {
       <div className="flex-1 flex overflow-hidden">
         <Sidebar activeTab={activeTab} onSelectTab={setActiveTab} />
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6 space-y-6 max-w-7xl mx-auto w-full">
-          {/* Header banner with active shop indicator */}
-          <div className="bg-light-surface dark:bg-dark-surface p-4 md:p-6 rounded-2xl border border-light-border dark:border-dark-border shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-primary/10 text-primary dark:text-primary-tint">
-                  {activeShop ? `Active Shop: ${activeShop.name}` : 'Company-Wide (All Shops)'}
-                </span>
-                <span className="text-xs text-light-text-muted dark:text-dark-text-muted">
-                  Rule 1: Every record belongs to a shop
-                </span>
+        {activeTab === 'pos' ? (
+          <main className="flex-1 overflow-hidden">
+            <PosView
+              activeShop={activeShop}
+              apiUrl={apiUrl}
+              onSaleCompleted={() => {
+                fetchTrialBalance(activeShop?.id);
+                fetchDashboardKpis(activeShop?.id);
+              }}
+            />
+          </main>
+        ) : (
+          <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6 space-y-6 max-w-7xl mx-auto w-full">
+            {/* Header banner with active shop indicator */}
+            <div className="bg-light-surface dark:bg-dark-surface p-4 md:p-6 rounded-2xl border border-light-border dark:border-dark-border shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-primary/10 text-primary dark:text-primary-tint">
+                    {activeShop ? `Active Shop: ${activeShop.name}` : 'Company-Wide (All Shops)'}
+                  </span>
+                  <span className="text-xs text-light-text-muted dark:text-dark-text-muted">
+                    Rule 1: Every record belongs to a shop
+                  </span>
+                </div>
+                <h2 className="text-lg md:text-xl font-bold mt-1">Multi-Shop POS, Stock & Ledger</h2>
+                <p className="text-xs text-light-text-muted dark:text-dark-text-muted">
+                  Daily Screens: POS Terminal, Shop Expenses, Size Stock & Bulk Import
+                </p>
               </div>
-              <h2 className="text-lg md:text-xl font-bold mt-1">Multi-Shop POS, Stock & Ledger</h2>
-              <p className="text-xs text-light-text-muted dark:text-dark-text-muted">
-                Step 2: Shop Management, Two-Step Transfers, Size Stock & SQL-filtered Reports
-              </p>
+
+              <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2 bg-light-surface-hover dark:bg-dark-surface-hover px-3 py-1.5 rounded-xl border border-light-border dark:border-dark-border">
+                  <Server className="w-4 h-4 text-light-text-muted dark:text-dark-text-muted" />
+                  <span className="text-xs font-semibold" data-testid="api-status">
+                    {loading ? 'Checking...' : error ? 'Offline' : `API: ${health?.status}`}
+                  </span>
+                </div>
+                <div className="flex items-center space-x-2 bg-light-surface-hover dark:bg-dark-surface-hover px-3 py-1.5 rounded-xl border border-light-border dark:border-dark-border">
+                  <Database className="w-4 h-4 text-light-text-muted dark:text-dark-text-muted" />
+                  <span className="text-xs font-semibold" data-testid="migration-number">
+                    {loading ? '...' : `v${health?.migration ?? 0}`}
+                  </span>
+                </div>
+              </div>
             </div>
 
-            <div className="flex items-center space-x-3">
-              <div className="flex items-center space-x-2 bg-light-surface-hover dark:bg-dark-surface-hover px-3 py-1.5 rounded-xl border border-light-border dark:border-dark-border">
-                <Server className="w-4 h-4 text-light-text-muted dark:text-dark-text-muted" />
-                <span className="text-xs font-semibold" data-testid="api-status">
-                  {loading ? 'Checking...' : error ? 'Offline' : `API: ${health?.status}`}
-                </span>
-              </div>
-              <div className="flex items-center space-x-2 bg-light-surface-hover dark:bg-dark-surface-hover px-3 py-1.5 rounded-xl border border-light-border dark:border-dark-border">
-                <Database className="w-4 h-4 text-light-text-muted dark:text-dark-text-muted" />
-                <span className="text-xs font-semibold" data-testid="migration-number">
-                  {loading ? '...' : `v${health?.migration ?? 0}`}
-                </span>
-              </div>
-            </div>
-          </div>
+            {/* Tab 1: POS is handled above */}
 
-          {/* Tab 1: Transfers */}
-          {activeTab === 'transfers' && (
-            <TransfersView activeShop={activeShop} shops={shops} apiUrl={apiUrl} />
-          )}
+            {/* Tab 2: Products & Stock Grid */}
+            {activeTab === 'products' && (
+              <StockGridView apiUrl={apiUrl} activeShop={activeShop} />
+            )}
 
-          {/* Tab 2: Products & Stock Grid */}
-          {activeTab === 'products' && (
-            <StockGridView apiUrl={apiUrl} />
-          )}
+            {/* Tab 3: Daily Expenses */}
+            {activeTab === 'expenses' && (
+              <ExpensesView
+                activeShop={activeShop}
+                apiUrl={apiUrl}
+                onExpenseAdded={() => {
+                  fetchTrialBalance(activeShop?.id);
+                  fetchDashboardKpis(activeShop?.id);
+                }}
+              />
+            )}
 
-          {/* Tab 3: Users & User-to-Shop Mapping */}
-          {activeTab === 'users' && (
-            <UsersView apiUrl={apiUrl} shops={shops} />
-          )}
+            {/* Tab 4: Transfers */}
+            {activeTab === 'transfers' && (
+              <TransfersView activeShop={activeShop} shops={shops} apiUrl={apiUrl} />
+            )}
 
-          {/* Tab 4: Shop Management */}
-          {activeTab === 'settings' && (
-            <ShopsView shops={shops} onRefreshShops={fetchShops} apiUrl={apiUrl} />
-          )}
+            {/* Tab 5: Users & User-to-Shop Mapping */}
+            {activeTab === 'users' && (
+              <UsersView apiUrl={apiUrl} shops={shops} />
+            )}
+
+            {/* Tab 6: Shop Management */}
+            {activeTab === 'settings' && (
+              <ShopsView shops={shops} onRefreshShops={fetchShops} apiUrl={apiUrl} />
+            )}
 
           {/* Default Tab: Dashboard & Ledger (activeTab === 'dashboard' || activeTab === 'ledger') */}
           {(activeTab === 'dashboard' || activeTab === 'ledger') && (
@@ -529,6 +557,7 @@ export const App: React.FC = () => {
             </>
           )}
         </main>
+        )}
       </div>
 
       <BottomTabs activeTab={activeTab} onSelectTab={setActiveTab} />

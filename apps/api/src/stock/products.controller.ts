@@ -9,7 +9,7 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { ProductsService, CreateProductDto } from './products.service';
-import { Product } from '@ar-option/shared-types';
+import { Product, BulkImportProductDto } from '@ar-option/shared-types';
 
 @Controller('products')
 export class ProductsController {
@@ -28,6 +28,14 @@ export class ProductsController {
   @Post()
   async createProduct(@Body() body: CreateProductDto): Promise<Product> {
     return this.productsService.createProduct(body);
+  }
+
+  @Post('bulk-import')
+  async bulkImport(
+    @Body() body: { items: BulkImportProductDto[] },
+    @Req() req: any
+  ): Promise<{ imported_count: number; items: Product[] }> {
+    return this.productsService.bulkImportProducts(body.items, req.user?.id);
   }
 
   @Post('initial-stock')

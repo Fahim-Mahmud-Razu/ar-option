@@ -198,3 +198,104 @@ export interface DashboardKpis {
   pending_transfers: number;
   is_trial_balance_balanced: boolean;
 }
+
+// Step 3: Expenses Types
+export interface ExpenseCategory {
+  id: number;
+  name: string;
+  is_active: boolean;
+}
+
+export interface Expense {
+  id: number;
+  location_id: number;
+  shop_name: string;
+  shop_code: string;
+  category_id: number;
+  category_name: string;
+  amount: number;
+  payment_account_id: number;
+  payment_account_name: string;
+  entry_id?: string;
+  ref_no?: string;
+  notes?: string;
+  created_by?: number;
+  created_at: string;
+}
+
+export interface CreateExpenseDto {
+  category_id: number;
+  amount: number;
+  payment_account_id: number;
+  ref_no?: string;
+  notes?: string;
+}
+
+// Step 3: POS & Sales Types
+export interface SaleItem {
+  id: number;
+  sale_id: number;
+  product_variation_id: number;
+  product_name: string;
+  size: string;
+  sku: string;
+  quantity: number;
+  unit_cost: number;
+  unit_price: number;
+  discount: number;
+  total: number;
+}
+
+export interface Sale {
+  id: number;
+  invoice_number: string;
+  location_id: number;
+  shop_name: string;
+  shop_code: string;
+  client_ref?: string;
+  customer_name?: string;
+  customer_phone?: string;
+  sale_type: 'counter' | 'courier';
+  subtotal: number;
+  discount_amount: number;
+  total_amount: number;
+  paid_amount: number;
+  payment_account_id?: number;
+  payment_account_name?: string;
+  entry_id?: string;
+  created_by?: number;
+  created_at: string;
+  items?: SaleItem[];
+}
+
+export interface CreateSaleItemDto {
+  product_variation_id: number;
+  quantity: number;
+  override_price?: number;
+  discount?: number;
+}
+
+export interface CreateSaleDto {
+  client_ref?: string;
+  customer_name?: string;
+  customer_phone?: string;
+  sale_type?: 'counter' | 'courier';
+  discount_amount?: number;
+  payment_account_id: number;
+  items: CreateSaleItemDto[];
+}
+
+export interface BulkImportProductDto {
+  name: string;
+  code: string;
+  category_name?: string;
+  brand_name?: string;
+  cost_price: number;
+  selling_price: number;
+  sizes?: string[];
+  initial_stock?: {
+    shop_code: string;
+    size: string;
+    quantity: number;
+  }[];
+}
