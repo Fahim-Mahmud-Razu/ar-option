@@ -282,6 +282,18 @@ test.describe('App Shell Smoke Test', () => {
     const searchInput = page.locator('input[placeholder*="Search by product name"]');
     await expect(searchInput).toBeVisible();
     await expect(page.locator('text=Classic Polo Shirt')).toBeVisible();
+
+    // Click product to add to cart
+    await page.locator('text=Classic Polo Shirt').first().click();
+
+    // Verify selected indicator badge on product card
+    await expect(page.locator('text=1 in cart')).toBeVisible();
+
+    // Verify cart panel displays the selected item details
+    await expect(page.locator('text=Current Order (1 item)')).toBeVisible();
+    await expect(page.locator('text=Size: L')).toBeVisible();
+    await expect(page.getByText('POLO-01-L', { exact: true })).toBeVisible();
+    await expect(page.locator(':visible:has-text("৳950.00")').first()).toBeVisible();
   });
 
   test('navigates to Return & Exchange screen and verifies 3-step net calculation', async ({ page }) => {
