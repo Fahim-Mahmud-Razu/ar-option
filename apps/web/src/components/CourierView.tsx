@@ -19,6 +19,7 @@ import type {
   CourierSettlement,
   StockByShopGridItem,
 } from '@ar-option/shared-types';
+import { apiFetch } from '../lib/api';
 
 interface CourierViewProps {
   activeShop: Shop | null;
@@ -100,7 +101,7 @@ export const CourierView: React.FC<CourierViewProps> = ({
       if (activeShop) url.searchParams.set('shop_id', String(activeShop.id));
       if (quickFilter !== 'all') url.searchParams.set('filter', quickFilter);
 
-      const res = await fetch(url.toString());
+      const res = await apiFetch(url.toString());
       if (res.ok) {
         const data: CourierParcel[] = await res.json();
         setParcels(data);
@@ -117,7 +118,7 @@ export const CourierView: React.FC<CourierViewProps> = ({
       const url = activeShop
         ? `${apiUrl}/courier/summary?shop_id=${activeShop.id}`
         : `${apiUrl}/courier/summary`;
-      const res = await fetch(url);
+      const res = await apiFetch(url);
       if (res.ok) {
         const data = await res.json();
         setCourierSummary(data);
@@ -129,7 +130,7 @@ export const CourierView: React.FC<CourierViewProps> = ({
 
   const fetchAccounts = useCallback(async (shopId: number) => {
     try {
-      const res = await fetch(`${apiUrl}/ledger/accounts?shop_id=${shopId}`);
+      const res = await apiFetch(`${apiUrl}/ledger/payment-accounts?shop_id=${shopId}`);
       if (res.ok) {
         const data: Account[] = await res.json();
         const assetAccounts = data.filter((a) => a.type === 'asset');
@@ -146,7 +147,7 @@ export const CourierView: React.FC<CourierViewProps> = ({
 
   const fetchStockGrid = useCallback(async () => {
     try {
-      const res = await fetch(`${apiUrl}/reports/stock-by-shop`);
+      const res = await apiFetch(`${apiUrl}/reports/stock-by-shop`);
       if (res.ok) {
         const data: StockByShopGridItem[] = await res.json();
         setStockGrid(data);
@@ -158,7 +159,7 @@ export const CourierView: React.FC<CourierViewProps> = ({
 
   const fetchSettlements = useCallback(async () => {
     try {
-      const res = await fetch(`${apiUrl}/courier/settlements`);
+      const res = await apiFetch(`${apiUrl}/courier/settlements`);
       if (res.ok) {
         const data: CourierSettlement[] = await res.json();
         setSettlementsHistory(data);
@@ -230,7 +231,7 @@ export const CourierView: React.FC<CourierViewProps> = ({
       const adv = parseFloat(advanceAmount) || 0;
       const fee = parseFloat(deliveryCharge) || 0;
 
-      const res = await fetch(`${apiUrl}/courier/parcels/book`, {
+      const res = await apiFetch(`${apiUrl}/courier/parcels/book`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -290,7 +291,7 @@ export const CourierView: React.FC<CourierViewProps> = ({
     setFeedback(null);
 
     try {
-      const res = await fetch(`${apiUrl}/courier/parcels/${updatingParcel.id}/delivery-status`, {
+      const res = await apiFetch(`${apiUrl}/courier/parcels/${updatingParcel.id}/delivery-status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -345,7 +346,7 @@ export const CourierView: React.FC<CourierViewProps> = ({
 
     setSubmitting(true);
     try {
-      const res = await fetch(`${apiUrl}/courier/settlements`, {
+      const res = await apiFetch(`${apiUrl}/courier/settlements`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

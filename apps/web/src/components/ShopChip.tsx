@@ -28,7 +28,7 @@ export const ShopChip: React.FC<ShopChipProps> = ({
       >
         <Store className="w-3.5 h-3.5" />
         <span className="font-bold truncate max-w-[120px] md:max-w-[160px]">
-          {activeShop ? activeShop.name : 'All shops'}
+          {activeShop ? activeShop.name : isAdmin ? 'All shops' : 'Choose shop'}
         </span>
         <ChevronDown className="w-3 h-3 opacity-70" />
       </button>

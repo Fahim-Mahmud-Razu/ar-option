@@ -7,20 +7,30 @@ import {
   Req,
   UseGuards,
   UnauthorizedException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { LoginDto, CreateUserDto, AuthResponse, User } from '@ar-option/shared-types';
+import { Public } from './public.decorator';
+import { LoginDto, CreateUserDto, AuthResponse, SetupStatus, User } from '@ar-option/shared-types';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Get('setup-status')
+  @Public()
+  async getSetupStatus(): Promise<SetupStatus> {
+    return { needs_setup: await this.authService.needsSetup() };
+  }
+
   @Post('login')
+  @Public()
   async login(@Body() body: LoginDto): Promise<AuthResponse> {
     return this.authService.login(body);
   }
 
   @Post('register')
+  @Public()
   async register(
     @Body() body: CreateUserDto,
     @Req() req: any
@@ -53,6 +63,9 @@ export class AuthController {
     @Req() req: any
   ): Promise<any> {
     const targetUserId = parseInt(req.params.id, 10);
+    if (req.user.role !== 'admin' && req.user.id !== targetUserId) {
+      throw new ForbiddenException('You can only view your own shops.');
+    }
     return this.authService.getUserAssignedShops(targetUserId);
   }
 
@@ -66,6 +79,20 @@ export class AuthController {
     }
     const targetUserId = parseInt(req.params.id, 10);
     return this.authService.updateUserShops(targetUserId, body.shop_ids || []);
+  }
+
+  @Put('users/:id/discount-limit')
+  async updateDiscountLimit(
+    @Req() req: any,
+    @Body() body: { discount_limit_percent: number }
+  ): Promise<User> {
+    if (req.user.role !== 'admin') {
+      throw new ForbiddenException('Admin privileges required to change discount limits.');
+    }
+    return this.authService.updateDiscountLimit(
+      parseInt(req.params.id, 10),
+      body.discount_limit_percent
+    );
   }
 }
 

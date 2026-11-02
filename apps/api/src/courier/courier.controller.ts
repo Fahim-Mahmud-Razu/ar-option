@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 import { CourierService } from './courier.service';
 import { ShopGuard } from '../shops/shop.guard';
+import { PermissionsGuard } from '../auth/permissions.guard';
+import { RequirePermission } from '../auth/require-permission.decorator';
 import {
   BookCourierParcelDto,
   UpdateParcelDeliveryDto,
@@ -55,7 +57,8 @@ export class CourierController {
   }
 
   @Post('parcels/book')
-  @UseGuards(ShopGuard)
+  @UseGuards(ShopGuard, PermissionsGuard)
+  @RequirePermission('courier.manage')
   async bookParcel(
     @Body() body: BookCourierParcelDto,
     @Req() req: any
@@ -64,6 +67,8 @@ export class CourierController {
   }
 
   @Post('parcels/:id/delivery-status')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('courier.manage')
   async updateDeliveryStatus(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateParcelDeliveryDto,
@@ -83,6 +88,8 @@ export class CourierController {
   }
 
   @Post('settlements')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('courier.settle')
   async createSettlement(
     @Body() body: CreateSettlementDto,
     @Req() req: any

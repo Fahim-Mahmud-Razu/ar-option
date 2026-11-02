@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import type { Shop, Expense, ExpenseCategory, Account } from '@ar-option/shared-types';
+import { apiFetch } from '../lib/api';
 
 interface ExpensesViewProps {
   activeShop: Shop | null;
@@ -46,7 +47,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
   // Fetch Categories
   const fetchCategories = useCallback(async () => {
     try {
-      const res = await fetch(`${apiUrl}/expenses/categories`);
+      const res = await apiFetch(`${apiUrl}/expenses/categories`);
       if (res.ok) {
         const data: ExpenseCategory[] = await res.json();
         setCategories(data);
@@ -63,7 +64,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
   const fetchAccounts = useCallback(
     async (shopId: number) => {
       try {
-        const res = await fetch(`${apiUrl}/ledger/accounts?shop_id=${shopId}`);
+        const res = await apiFetch(`${apiUrl}/ledger/payment-accounts?shop_id=${shopId}`);
         if (res.ok) {
           const data: Account[] = await res.json();
           const assetAccounts = data.filter((a) => a.type === 'asset');
@@ -92,7 +93,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
         url.searchParams.set('category_id', selectedCategoryId);
       }
 
-      const res = await fetch(url.toString());
+      const res = await apiFetch(url.toString());
       if (res.ok) {
         const data: Expense[] = await res.json();
         setExpenses(data);
@@ -143,7 +144,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
 
     setSubmitting(true);
     try {
-      const res = await fetch(`${apiUrl}/expenses`, {
+      const res = await apiFetch(`${apiUrl}/expenses`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

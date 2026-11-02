@@ -52,6 +52,8 @@ describe('Foundation: Ledger, Shop Guard & API Permissions (e2e)', () => {
     await pool.query('DELETE FROM courier_settlements');
     await pool.query('DELETE FROM return_items');
     await pool.query('DELETE FROM returns');
+    await pool.query('DELETE FROM till_movements');
+    await pool.query('DELETE FROM till_sessions');
     await pool.query('DELETE FROM daily_cash_closings');
     await pool.query('DELETE FROM courier_parcel_items');
     await pool.query('DELETE FROM courier_parcels');
@@ -67,6 +69,8 @@ describe('Foundation: Ledger, Shop Guard & API Permissions (e2e)', () => {
     await pool.query('DELETE FROM stock');
     await pool.query('DELETE FROM product_variations');
     await pool.query('DELETE FROM products');
+    await pool.query('DELETE FROM categories');
+    await pool.query('DELETE FROM brands');
     await pool.query('DELETE FROM account_transactions');
     await pool.query('DELETE FROM user_locations');
     await pool.query('DELETE FROM users');
@@ -91,9 +95,9 @@ describe('Foundation: Ledger, Shop Guard & API Permissions (e2e)', () => {
 
     // Create shop cash accounts
     await pool.query(
-      `INSERT INTO accounts (code, name, type, location_id, is_active)
-       VALUES ('CASH_GUL', 'Gulshan Cash', 'asset', $1, true),
-              ('CASH_DHM', 'Dhanmondi Cash', 'asset', $2, true)
+      `INSERT INTO accounts (code, name, type, location_id, is_active, payment_method)
+       VALUES ('CASH_GUL', 'Gulshan Cash', 'asset', $1, true, 'cash'),
+              ('CASH_DHM', 'Dhanmondi Cash', 'asset', $2, true, 'cash')
        ON CONFLICT (code) DO NOTHING`,
       [testShopId, secondShopId]
     );
@@ -333,6 +337,7 @@ describe('Foundation: Ledger, Shop Guard & API Permissions (e2e)', () => {
       const tbRes = await app.inject({
         method: 'GET',
         url: '/ledger/trial-balance',
+        headers: { authorization: `Bearer ${adminToken}` },
       });
 
       expect(tbRes.statusCode).toBe(200);

@@ -4,7 +4,7 @@ import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { LedgerService } from '../ledger/ledger.service';
 import { CreateExpenseDto, Expense, ExpenseCategory } from '@ar-option/shared-types';
@@ -30,8 +30,11 @@ export class ExpensesService {
   async createExpense(
     dto: CreateExpenseDto,
     shopId: number,
-    userId?: number
+    userId?: number,
+    opts: { client?: PoolClient; client_ref?: string } = {}
   ): Promise<Expense> {
+    // With a client, every read and write joins the caller's transaction.
+    const db: Pick<Pool, 'query'> = opts.client ?? this.pool;
     if (!shopId) {
       throw new BadRequestException('Shop ID is required to record an expense.');
     }
@@ -46,7 +49,7 @@ export class ExpensesService {
     }
 
     // 1. Verify category exists
-    const catRes = await this.pool.query(
+    const catRes = await db.query(
       'SELECT id, name FROM expense_categories WHERE id = $1 AND is_active = true',
       [dto.category_id]
     );
@@ -56,7 +59,7 @@ export class ExpensesService {
     const category = catRes.rows[0];
 
     // 2. Verify payment account
-    const accRes = await this.pool.query(
+    const accRes = await db.query(
       'SELECT id, code, name, type, location_id, is_active FROM accounts WHERE id = $1',
       [dto.payment_account_id]
     );
@@ -76,7 +79,7 @@ export class ExpensesService {
       );
     }
 
-    const refNo = dto.ref_no || `EXP-${Date.now()}`;
+    const refNo = dto.ref_no || opts.client_ref || `EXP-${Date.now()}`;
 
     // 3. Post balanced double-entry transaction to ledger
     // Dr OPERATING_EXPENSES (amount)
@@ -87,6 +90,7 @@ export class ExpensesService {
         entry_type: 'expense',
         source_type: 'expense',
         source_id: refNo,
+        client_ref: opts.client_ref,
         notes: dto.notes || `${category.name} expense`,
         lines: [
           {
@@ -103,11 +107,12 @@ export class ExpensesService {
           },
         ],
       },
-      userId
+      userId,
+      opts.client
     );
 
     // 4. Insert into expenses table
-    const insRes = await this.pool.query(
+    const insRes = await db.query(
       `INSERT INTO expenses (
         location_id,
         category_id,
@@ -132,7 +137,7 @@ export class ExpensesService {
     );
 
     // 5. Fetch shop info
-    const shopRes = await this.pool.query(
+    const shopRes = await db.query(
       'SELECT name, code FROM locations WHERE id = $1',
       [shopId]
     );

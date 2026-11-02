@@ -12,16 +12,18 @@ import {
   CreditCard,
   User,
   Phone,
-  Truck,
   RotateCcw,
+  ArrowLeft,
   Receipt,
   Store,
 } from 'lucide-react';
-import type { Shop, Account, Sale, StockByShopGridItem } from '@ar-option/shared-types';
+import type { Shop, Account, CreateSaleDto, Sale, StockByShopGridItem } from '@ar-option/shared-types';
+import { apiFetch } from '../lib/api';
 
 interface PosViewProps {
   activeShop: Shop | null;
   apiUrl: string;
+  onExit: () => void;
   onSaleCompleted?: () => void;
 }
 
@@ -42,6 +44,7 @@ interface CartItem {
 export const PosView: React.FC<PosViewProps> = ({
   activeShop,
   apiUrl,
+  onExit,
   onSaleCompleted,
 }) => {
   const [stockGrid, setStockGrid] = useState<StockByShopGridItem[]>([]);
@@ -62,13 +65,9 @@ export const PosView: React.FC<PosViewProps> = ({
   const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(false);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState<boolean>(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [paymentAccountCode, setPaymentAccountCode] = useState<string>('');
+  const [paymentAccountId, setPaymentAccountId] = useState<number | null>(null);
   const [customerName, setCustomerName] = useState<string>('Walk-in Customer');
   const [customerPhone, setCustomerPhone] = useState<string>('');
-  const [isCourierSale, setIsCourierSale] = useState<boolean>(false);
-  const [deliveryAddress, setDeliveryAddress] = useState<string>('');
-  const [courierName, setCourierName] = useState<string>('Steadfast');
-  const [deliveryFee, setDeliveryFee] = useState<number>(100);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -78,12 +77,14 @@ export const PosView: React.FC<PosViewProps> = ({
   const [showRecentSales, setShowRecentSales] = useState<boolean>(false);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+  // Rule 6: one reference per sale attempt, so a retry after a lost reply cannot sell twice.
+  const clientRefRef = useRef<string | null>(null);
 
   // Fetch stock and accounts
   const fetchStockData = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${apiUrl}/reports/stock-by-shop`);
+      const res = await apiFetch(`${apiUrl}/reports/stock-by-shop`);
       if (res.ok) {
         const data: StockByShopGridItem[] = await res.json();
         setStockGrid(data);
@@ -97,16 +98,12 @@ export const PosView: React.FC<PosViewProps> = ({
 
   const fetchAccounts = async (shopId: number) => {
     try {
-      const res = await fetch(`${apiUrl}/ledger/accounts?shop_id=${shopId}`);
+      const res = await apiFetch(`${apiUrl}/ledger/payment-accounts?shop_id=${shopId}`);
       if (res.ok) {
         const data: Account[] = await res.json();
-        const assetAccounts = data.filter((a) => a.type === 'asset');
-        setAccounts(assetAccounts);
-        if (assetAccounts.length > 0) {
-          // Look for shop cash account first
-          const cashAcc = assetAccounts.find((a) => a.code.startsWith('CASH_'));
-          setPaymentAccountCode(cashAcc ? cashAcc.code : assetAccounts[0].code);
-        }
+        setAccounts(data);
+        const cashAcc = data.find((a) => a.payment_method === 'cash');
+        setPaymentAccountId(cashAcc?.id ?? data[0]?.id ?? null);
       }
     } catch {
       // ignore
@@ -115,7 +112,7 @@ export const PosView: React.FC<PosViewProps> = ({
 
   const fetchRecentSales = async (shopId: number) => {
     try {
-      const res = await fetch(`${apiUrl}/pos/sales?shop_id=${shopId}`);
+      const res = await apiFetch(`${apiUrl}/pos/sales?shop_id=${shopId}`);
       if (res.ok) {
         const data: Sale[] = await res.json();
         setRecentSales(data);
@@ -133,9 +130,9 @@ export const PosView: React.FC<PosViewProps> = ({
     }
   }, [activeShop, apiUrl]);
 
-  // Autofocus search on desktop and tablet (>= 768px), but NOT on phones (DESIGN.md line 534-535)
+  // Autofocus search on desktop and tablet (>= 744px), but NOT on phones (DESIGN.md line 534-535)
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth >= 768) {
+    if (typeof window !== 'undefined' && window.innerWidth >= 744) {
       searchInputRef.current?.focus();
     }
   }, []);
@@ -190,13 +187,17 @@ export const PosView: React.FC<PosViewProps> = ({
 
   const cartTotal = useMemo(() => {
     const discount = Math.min(orderDiscount, cartSubtotal);
-    const sub = Math.max(0, cartSubtotal - discount);
-    return isCourierSale ? sub + deliveryFee : sub;
-  }, [cartSubtotal, orderDiscount, isCourierSale, deliveryFee]);
+    return Math.max(0, cartSubtotal - discount);
+  }, [cartSubtotal, orderDiscount]);
 
   const totalItemCount = useMemo(() => {
     return cart.reduce((sum, item) => sum + item.quantity, 0);
   }, [cart]);
+
+  // A changed cart is a new sale attempt.
+  useEffect(() => {
+    clientRefRef.current = null;
+  }, [cart, orderDiscount, paymentAccountId]);
 
   // Add variation to cart
   const addToCart = (
@@ -284,8 +285,8 @@ export const PosView: React.FC<PosViewProps> = ({
       setErrorMsg('Cart is empty.');
       return;
     }
-    if (!paymentAccountCode) {
-      setErrorMsg('Please select a payment account.');
+    if (!paymentAccountId) {
+      setErrorMsg('This shop has no payment account. Ask an admin to set one up.');
       return;
     }
 
@@ -293,21 +294,21 @@ export const PosView: React.FC<PosViewProps> = ({
     setErrorMsg(null);
 
     try {
-      const clientRef = `pos-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-      const payload = {
-        client_ref: clientRef,
+      clientRefRef.current ??= `pos-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      const payload: CreateSaleDto = {
+        client_ref: clientRefRef.current,
         customer_name: customerName.trim() || 'Walk-in Customer',
         customer_phone: customerPhone.trim() || undefined,
-        payment_account_code: paymentAccountCode,
+        payment_account_id: paymentAccountId,
         discount_amount: orderDiscount,
         items: cart.map((ci) => ({
-          variation_id: ci.variation_id,
+          product_variation_id: ci.variation_id,
           quantity: ci.quantity,
           discount: ci.discount || 0,
         })),
       };
 
-      const res = await fetch(`${apiUrl}/pos/sales`, {
+      const res = await apiFetch(`${apiUrl}/pos/sales`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -344,6 +345,15 @@ export const PosView: React.FC<PosViewProps> = ({
       {/* POS Top Navigation Bar */}
       <div className="flex items-center justify-between px-4 py-2 bg-light-surface dark:bg-dark-surface border-b border-light-border dark:border-dark-border">
         <div className="flex items-center space-x-3">
+          <button
+            type="button"
+            onClick={onExit}
+            aria-label="Back"
+            data-testid="pos-back"
+            className="w-11 h-11 -ml-2 flex items-center justify-center rounded-xl text-light-text-muted dark:text-dark-text-muted hover:bg-light-surface-hover dark:hover:bg-dark-surface-hover"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
           <div className="flex items-center space-x-2">
             <ShoppingCart className="w-5 h-5 text-primary dark:text-primary-tint" />
             <span className="font-extrabold text-sm md:text-base">Point of Sale</span>
@@ -373,7 +383,15 @@ export const PosView: React.FC<PosViewProps> = ({
       </div>
 
       {/* Main POS Layout */}
-      {showRecentSales ? (
+      {!activeShop ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+          <Store className="w-8 h-8 stroke-1 mb-2 opacity-50" />
+          <p className="text-sm font-semibold">Choose a shop to start selling</p>
+          <p className="text-xs mt-1 text-light-text-muted dark:text-dark-text-muted">
+            Use the shop button in the top bar. A sale always belongs to one shop.
+          </p>
+        </div>
+      ) : showRecentSales ? (
         /* Recent Sales & Receipt Reprint View */
         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
           <div className="flex items-center justify-between mb-4">
@@ -541,7 +559,7 @@ export const PosView: React.FC<PosViewProps> = ({
                 type="button"
                 disabled={cart.length === 0}
                 onClick={() => setIsCheckoutOpen(true)}
-                className="w-full h-12 flex items-center justify-center space-x-2 rounded-xl bg-primary hover:bg-primary-tint text-on-primary font-bold text-sm shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full h-12 flex items-center justify-center space-x-2 rounded-xl bg-primary hover:bg-primary-hover text-on-primary font-bold text-sm shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <CreditCard className="w-4 h-4" />
                 <span>Proceed to Checkout</span>
@@ -669,7 +687,7 @@ export const PosView: React.FC<PosViewProps> = ({
                 type="button"
                 disabled={cart.length === 0}
                 onClick={() => setIsMobileCartOpen(true)}
-                className="h-11 px-5 rounded-xl bg-primary hover:bg-primary-tint text-on-primary font-bold text-xs flex items-center space-x-1.5 shadow-md disabled:opacity-50"
+                className="h-11 px-5 rounded-xl bg-primary hover:bg-primary-hover text-on-primary font-bold text-xs flex items-center space-x-1.5 shadow-md disabled:opacity-50"
               >
                 <ShoppingCart className="w-4 h-4" />
                 <span>View Cart & Checkout</span>
@@ -906,21 +924,21 @@ export const PosView: React.FC<PosViewProps> = ({
               {/* Payment Account (Rule 8: Counter sales paid in full at checkout) */}
               <div>
                 <label className="block text-xs font-semibold text-light-text-muted mb-1">
-                  Payment Account (Shop Cash / Bank) *
+                  Payment Account *
                 </label>
                 <select
-                  value={paymentAccountCode}
-                  onChange={(e) => setPaymentAccountCode(e.target.value)}
+                  value={paymentAccountId ?? ''}
+                  onChange={(e) => setPaymentAccountId(Number(e.target.value))}
                   className="w-full h-10 px-3 rounded-xl text-xs bg-light-surface-hover dark:bg-dark-surface-hover border border-light-border dark:border-dark-border font-mono font-semibold"
                 >
                   {accounts.map((acc) => (
-                    <option key={acc.code} value={acc.code}>
-                      {acc.code} - {acc.name}
+                    <option key={acc.id} value={acc.id}>
+                      {acc.name}
                     </option>
                   ))}
                 </select>
-                <p className="text-[11px] text-light-text-muted mt-1">
-                  Rule 8: Counter sales must be collected in full at checkout.
+                <p className="text-xs text-light-text-muted mt-1">
+                  Counter sales are paid in full at checkout.
                 </p>
               </div>
 
@@ -939,66 +957,6 @@ export const PosView: React.FC<PosViewProps> = ({
                 />
               </div>
 
-              {/* Courier Sale Switch (DESIGN.md line 538) */}
-              <div className="p-3 rounded-xl border border-light-border dark:border-dark-border bg-light-surface-hover dark:bg-dark-surface-hover space-y-3">
-                <label className="flex items-center space-x-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isCourierSale}
-                    onChange={(e) => setIsCourierSale(e.target.checked)}
-                    className="w-4 h-4 rounded text-primary focus:ring-primary"
-                  />
-                  <div className="flex items-center space-x-1.5 text-xs font-bold">
-                    <Truck className="w-4 h-4 text-primary" />
-                    <span>Courier Sale (Deliver to customer)</span>
-                  </div>
-                </label>
-
-                {isCourierSale && (
-                  <div className="space-y-3 pt-2 border-t border-light-border dark:border-dark-border animate-in fade-in">
-                    <div>
-                      <label className="block text-xs font-semibold text-light-text-muted mb-1">
-                        Delivery Address *
-                      </label>
-                      <textarea
-                        rows={2}
-                        value={deliveryAddress}
-                        onChange={(e) => setDeliveryAddress(e.target.value)}
-                        placeholder="House, Road, Area, District..."
-                        className="w-full p-2.5 rounded-xl text-xs bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-xs font-semibold text-light-text-muted mb-1">
-                          Courier
-                        </label>
-                        <select
-                          value={courierName}
-                          onChange={(e) => setCourierName(e.target.value)}
-                          className="w-full h-9 px-2.5 rounded-lg text-xs bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border"
-                        >
-                          <option value="Steadfast">Steadfast</option>
-                          <option value="Pathao">Pathao</option>
-                          <option value="Paperfly">Paperfly</option>
-                          <option value="RedX">RedX</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-light-text-muted mb-1">
-                          Delivery Charge (৳)
-                        </label>
-                        <input
-                          type="number"
-                          value={deliveryFee}
-                          onChange={(e) => setDeliveryFee(parseFloat(e.target.value) || 0)}
-                          className="w-full h-9 px-2.5 rounded-lg text-xs bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border font-mono"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
 
               {/* Order Final Summary */}
               <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 space-y-1.5 text-xs">
@@ -1016,12 +974,6 @@ export const PosView: React.FC<PosViewProps> = ({
                     <span className="font-mono">-৳{orderDiscount.toFixed(2)}</span>
                   </div>
                 )}
-                {isCourierSale && (
-                  <div className="flex justify-between text-light-text-muted">
-                    <span>Delivery Fee:</span>
-                    <span className="font-mono">+৳{deliveryFee.toFixed(2)}</span>
-                  </div>
-                )}
                 <div className="flex justify-between text-sm font-extrabold pt-2 border-t border-primary/20">
                   <span>Grand Total (Paid in Full):</span>
                   <span className="font-mono text-primary dark:text-primary-tint">
@@ -1035,7 +987,7 @@ export const PosView: React.FC<PosViewProps> = ({
                 type="button"
                 disabled={submitting || cart.length === 0}
                 onClick={handleCheckout}
-                className="w-full h-12 rounded-xl bg-primary hover:bg-primary-tint text-on-primary font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
+                className="w-full h-12 rounded-xl bg-primary hover:bg-primary-hover text-on-primary font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
               >
                 {submitting ? (
                   <span>Processing & Posting to Ledger...</span>
@@ -1058,8 +1010,7 @@ export const PosView: React.FC<PosViewProps> = ({
             {/* Header: Shop Name & sequential invoice */}
             <div className="text-center space-y-1 pb-3 border-b border-dashed border-black/40">
               <h2 className="text-base font-extrabold tracking-wider uppercase">AR OPTION</h2>
-              <p className="text-[11px] font-semibold">{activeShop?.name || 'Dhaka Shop'}</p>
-              <p className="text-[10px]">Hotline: +880 1700-000000</p>
+              <p className="text-[11px] font-semibold">{completedSale.shop_name}</p>
               <div className="pt-2 text-[11px] font-bold">
                 RECEIPT #{completedSale.invoice_number}
               </div>
@@ -1072,7 +1023,7 @@ export const PosView: React.FC<PosViewProps> = ({
             <div className="text-[10px] space-y-0.5 pb-2 border-b border-dashed border-black/40">
               <div>Customer: {completedSale.customer_name}</div>
               {completedSale.customer_phone && <div>Phone: {completedSale.customer_phone}</div>}
-              <div>Cashier: Cashier #{completedSale.created_by || 1}</div>
+              <div>Cashier: #{completedSale.created_by}</div>
             </div>
 
             {/* Itemized lines */}
@@ -1115,7 +1066,7 @@ export const PosView: React.FC<PosViewProps> = ({
                 <span>৳{completedSale.total_amount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between font-bold text-[10px] pt-1">
-                <span>PAID (CASH):</span>
+                <span>PAID ({completedSale.payment_account_name || 'Paid'}):</span>
                 <span>৳{completedSale.paid_amount.toFixed(2)}</span>
               </div>
             </div>

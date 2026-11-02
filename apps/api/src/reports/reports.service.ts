@@ -19,7 +19,7 @@ export class ReportsService {
 
     // 2. Stock value (qty * cost_price)
     let stockSql = `
-      SELECT COALESCE(SUM(s.qty_available * p.cost_price), 0) AS total_value
+      SELECT COALESCE(SUM(s.qty_available * pv.cost_price), 0) AS total_value
       FROM stock s
       JOIN product_variations pv ON s.product_variation_id = pv.id
       JOIN products p ON pv.product_id = p.id
@@ -104,14 +104,14 @@ export class ReportsService {
         p.id AS product_id,
         p.name AS product_name,
         p.code AS product_code,
-        p.cost_price,
-        p.selling_price,
+        pv.cost_price,
+        pv.selling_price,
         pv.id AS variation_id,
         pv.size,
         pv.sku
       FROM product_variations pv
       JOIN products p ON pv.product_id = p.id
-      WHERE p.is_active = true
+      WHERE p.is_active = true AND pv.is_active = true
       ORDER BY p.name ASC, pv.id ASC
     `);
 

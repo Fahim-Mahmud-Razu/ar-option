@@ -8,21 +8,26 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test:e2e": "node -e 'require(\"dotenv\").config({ path: require(\"path\").resolve(__dirname, \"../../.env.test\") }); const url = new URL(process.env.DATABASE_URL || \"\"); if (url.hostname !== \"localhost\" && url.hostname !== \"127.0.0.1\") { console.error(\"ABORT: DATABASE_URL must point to localhost or 127.0.0.1 for tests. Got: \" + url.hostname); process.exit(1); }' && playwright test",
-    "test": "npm run test:e2e"
+    "test": "npm run test:e2e",
+    "test:real": "playwright test --config playwright.real.config.ts"
   },
   "dependencies": {
     "@ar-option/shared-types": "*",
     "lucide-react": "^0.469.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "read-excel-file": "^9.3.14",
     "recharts": "^2.15.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.1",
+    "@types/pg": "^8.11.10",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "dotenv": "^16.4.7",
+    "pg": "^8.13.1",
     "postcss": "^8.4.49",
     "tailwindcss": "3.4.17",
     "typescript": "^5.7.0",
@@ -30,4 +35,3 @@
     "vite-plugin-pwa": "^0.21.1"
   }
 }
-

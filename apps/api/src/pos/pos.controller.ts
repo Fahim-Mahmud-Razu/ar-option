@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 import { PosService } from './pos.service';
 import { ShopGuard } from '../shops/shop.guard';
+import { PermissionsGuard } from '../auth/permissions.guard';
+import { RequirePermission } from '../auth/require-permission.decorator';
 import { CreateSaleDto, Sale } from '@ar-option/shared-types';
 
 @Controller('pos')
@@ -33,7 +35,8 @@ export class PosController {
   }
 
   @Post('sales')
-  @UseGuards(ShopGuard)
+  @UseGuards(ShopGuard, PermissionsGuard)
+  @RequirePermission('pos.sell')
   async createSale(
     @Body() body: CreateSaleDto,
     @Req() req: any

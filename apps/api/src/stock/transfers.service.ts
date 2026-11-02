@@ -70,6 +70,7 @@ export class TransfersService {
 
     const transitLocationId = await this.getTransitLocationId();
 
+    let committedId: number;
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -137,14 +138,16 @@ export class TransfersService {
       }
 
       await client.query('COMMIT');
-
-      return await this.getTransferById(transfer.id);
+      committedId = transfer.id;
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
     } finally {
       client.release();
     }
+
+    // Read back after releasing the connection, so waiting sales cannot exhaust the pool.
+    return this.getTransferById(committedId);
   }
 
   /**
@@ -208,6 +211,7 @@ export class TransfersService {
     }
 
     const transitLocationId = await this.getTransitLocationId();
+    let committedId: number;
     const client = await this.pool.connect();
 
     try {
@@ -277,14 +281,16 @@ export class TransfersService {
       );
 
       await client.query('COMMIT');
-
-      return await this.getTransferById(transferId);
+      committedId = transferId;
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
     } finally {
       client.release();
     }
+
+    // Read back after releasing the connection, so waiting sales cannot exhaust the pool.
+    return this.getTransferById(committedId);
   }
 
   async listTransfers(

@@ -13,6 +13,23 @@ test.beforeAll(() => {
 
 test.describe('App Shell Smoke Test', () => {
   test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('ar_option_token', 'smoke-test-token');
+      localStorage.setItem('ar_option_shop', '1');
+    });
+    await page.route('**/auth/me', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          user: { id: 1, name: 'Smoke Admin', email: 'admin@aroption.com', role: 'admin', is_active: true },
+          permissions: [
+            'ledger.post', 'pos.sell', 'cash.reconcile', 'products.import', 'products.manage',
+            'till.view', 'till.open', 'till.cash_in', 'till.cash_out', 'till.close',
+          ],
+        }),
+      });
+    });
     // Intercept API routes with mock data for standalone web verification
     await page.route('**/health', async (route) => {
       await route.fulfill({
@@ -137,7 +154,16 @@ test.describe('App Shell Smoke Test', () => {
         ]),
       });
     });
-    await page.route('**/cash-closing/drawer-summary*', async (route) => {
+    await page.route('**/ledger/payment-accounts*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          { id: 10, code: 'CASH_GUL-01', name: 'Cash - Gulshan Branch', type: 'asset', payment_method: 'cash' },
+        ]),
+      });
+    });
+    await page.route('**/till/status', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -145,12 +171,30 @@ test.describe('App Shell Smoke Test', () => {
           shop_id: 1,
           shop_name: 'Gulshan Branch',
           shop_code: 'GUL-01',
-          cash_account_code: 'CASH_GUL-01',
-          opening_cash: 5000,
-          cash_sales: 12500,
-          cash_expenses: 1200,
-          cash_returns: 800,
-          system_expected_cash: 15500,
+          ledger_cash: 15500,
+          is_first_open: false,
+          session: {
+            id: 7, location_id: 1, status: 'open', opened_by: 1, opened_by_name: 'Smoke Admin',
+            opened_at: '2026-11-02T04:00:00.000Z', opening_float: 5000, open_adjustment: 0,
+          },
+          summary: {
+            current_cash: 15500, opening_float: 5000, cash_sales: 12500, digital_sales: 3000,
+            pay_ins: 0, petty_cash: 1200, refunds: 800, other_cash: 0,
+          },
+          movements: [],
+        }),
+      });
+    });
+    await page.route('**/till/overview*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          total_cash: 15500,
+          shops: [{
+            shop_id: 1, shop_name: 'Gulshan Branch', shop_code: 'GUL-01', is_open: true, session_id: 7,
+            cash_in_hand: 15500, opening_float: 5000, cash_sales: 12500, petty_cash: 1200,
+          }],
         }),
       });
     });
@@ -161,6 +205,28 @@ test.describe('App Shell Smoke Test', () => {
         body: JSON.stringify([]),
       });
     });
+  });
+
+  test('shows the login screen when nobody is signed in', async ({ page }) => {
+    await page.addInitScript(() => localStorage.removeItem('ar_option_token'));
+    await page.route('**/auth/setup-status', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ needs_setup: false }),
+      });
+    });
+    await page.goto('/');
+
+    await expect(page.getByRole('button', { name: 'Sign In' })).toBeVisible();
+    await expect(page.locator('[data-testid="shop-chip"]')).toHaveCount(0);
+  });
+
+  test('can leave the POS with the Back control', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('[data-testid$="-pos"]:visible').first().click();
+    await page.locator('[data-testid="pos-back"]').click();
+    await expect(page.locator('[data-testid="api-status"]')).toBeVisible();
   });
 
   test('loads page and verifies header, API status and migration number', async ({ page }) => {
@@ -214,30 +280,54 @@ test.describe('App Shell Smoke Test', () => {
     await expect(page.locator(':visible:has-text("unpaid")').first()).toBeVisible();
   });
 
-  test('navigates to Products & Stock and toggles between Grid and Bulk Import', async ({ page }) => {
+  test('navigates to Products & Stock and opens the Import page', async ({ page }) => {
     await page.goto('/');
 
     const productsNav = page.locator('[data-testid$="-products"]:visible').first();
     await productsNav.click();
 
     await expect(page.locator('text=Products & Inventory')).toBeVisible();
-    await expect(page.locator('button:has-text("Stock Grid")')).toBeVisible();
-    await expect(page.locator('button:has-text("Bulk Import")')).toBeVisible();
+    await page.getByTestId('open-import').click();
+    await expect(page.getByRole('heading', { name: 'Import Products' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Download template' })).toBeVisible();
 
-    await page.click('button:has-text("Bulk Import")');
-    await expect(page.locator('text=Bulk Product Import')).toBeVisible();
-    await expect(page.locator('button:has-text("Load Sample Apparel Data")')).toBeVisible();
+    await page.goBack();
+    await expect(page.locator('text=Products & Inventory')).toBeVisible();
   });
 
-  test('navigates to Daily Cash Closing screen and verifies drawer reconciliation', async ({ page }) => {
+  test('shows the Cash in Hand card on the dashboard', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByTestId('cash-in-hand-card')).toBeVisible();
+    await expect(page.getByTestId('cash-in-hand-figure')).toHaveText('৳15,500.00');
+    await expect(page.getByTestId('cash-in-hand-card').getByText('Till Open')).toBeVisible();
+  });
+
+  test('shows the open till, counts the drawer and closes the sheet with Back', async ({ page }) => {
     await page.goto('/');
 
-    const cashNav = page.locator('[data-testid$="-cash-closing"]:visible').first();
-    await cashNav.click();
+    await page.locator('[data-testid$="-cash-closing"]:visible').first().click();
 
-    await expect(page.getByRole('heading', { name: 'Daily Cash Closing' })).toBeVisible();
-    await expect(page.locator('text=Physical Drawer Cash Count')).toBeVisible();
-    await expect(page.locator(':visible:has-text("System Expected")').first()).toBeVisible();
-    await expect(page.locator(':visible:has-text("৳15500.00")').first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Till', exact: true })).toBeVisible();
+    await expect(page.getByTestId('till-current-cash')).toHaveText('৳15,500.00');
+    await expect(page.getByTestId('till-badge')).toHaveText('Till Open');
+    await expect(page.getByText('Opening Float', { exact: true })).toBeVisible();
+    await expect(page.getByText('Petty Cash', { exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Close & Handover' }).click();
+    const sheet = page.getByTestId('close-till-sheet');
+    await expect(sheet).toBeVisible();
+    await sheet.getByLabel('৳1,000 ৳0.00').fill('15');
+    await sheet.getByLabel('৳500 ৳0.00').fill('1');
+    await expect(page.getByTestId('close-counted')).toHaveText('৳15,500.00');
+    await expect(page.getByTestId('close-difference')).toHaveText('৳0.00');
+    await sheet.getByLabel('৳100 ৳0.00').fill('1');
+    await expect(page.getByTestId('close-difference')).toHaveText('+৳100.00');
+    await expect(sheet.getByRole('button', { name: 'Finish' })).toBeDisabled();
+    await sheet.getByLabel(/Reason for the difference/).fill('Found a note');
+    await expect(sheet.getByRole('button', { name: 'Finish' })).toBeEnabled();
+
+    await page.goBack();
+    await expect(sheet).toBeHidden();
+    await expect(page.getByTestId('till-current-cash')).toBeVisible();
   });
 });

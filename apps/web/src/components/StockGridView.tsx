@@ -1,22 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { Package, RefreshCw, Layers, UploadCloud, Grid } from 'lucide-react';
-import { ImportProductsView } from './ImportProductsView';
-import type { Shop, StockByShopGridItem } from '@ar-option/shared-types';
+import { Package, RefreshCw, Layers, UploadCloud, Plus, Pencil } from 'lucide-react';
+import type { StockByShopGridItem } from '@ar-option/shared-types';
+import { apiFetch } from '../lib/api';
 
 interface StockGridViewProps {
   apiUrl: string;
-  activeShop?: Shop | null;
+  canManage?: boolean;
+  onAddProduct?: () => void;
+  onEditProduct?: (productId: number) => void;
+  canImport?: boolean;
+  onImport?: () => void;
 }
 
-export const StockGridView: React.FC<StockGridViewProps> = ({ apiUrl, activeShop }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'grid' | 'import'>('grid');
+export const StockGridView: React.FC<StockGridViewProps> = ({
+  apiUrl,
+  canManage = false,
+  onAddProduct,
+  onEditProduct,
+  canImport = false,
+  onImport,
+}) => {
   const [gridItems, setGridItems] = useState<StockByShopGridItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedSizeIndex, setSelectedSizeIndex] = useState<number>(0);
 
   const fetchStockGrid = () => {
     setLoading(true);
-    fetch(`${apiUrl}/reports/stock-by-shop`)
+    apiFetch(`${apiUrl}/reports/stock-by-shop`)
       .then((res) => (res.ok ? res.json() : []))
       .then((data: StockByShopGridItem[]) => {
         setGridItems(data);
@@ -39,40 +49,36 @@ export const StockGridView: React.FC<StockGridViewProps> = ({ apiUrl, activeShop
             <span>Products & Inventory</span>
           </h2>
           <p className="text-xs text-light-text-muted dark:text-dark-text-muted mt-0.5">
-            Rule 4: Stock tracked per size across retail branches and in-transit locations
+            Rule 4: Stock tracked per size across shops and in-transit locations
           </p>
         </div>
 
         <div className="flex items-center space-x-2">
-          {/* Sub tabs */}
-          <div className="flex p-1 rounded-xl bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border text-xs">
+          {canImport && onImport && (
             <button
               type="button"
-              onClick={() => setActiveSubTab('grid')}
-              className={`px-3 py-1.5 rounded-lg font-bold flex items-center space-x-1.5 transition-colors ${
-                activeSubTab === 'grid'
-                  ? 'bg-primary text-on-primary shadow-sm'
-                  : 'text-light-text-muted hover:text-light-text'
-              }`}
+              onClick={onImport}
+              data-testid="open-import"
+              className="h-11 px-4 rounded-xl text-sm font-semibold flex items-center space-x-1.5 bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border"
             >
-              <Grid className="w-3.5 h-3.5" />
-              <span>Stock Grid</span>
+              <UploadCloud className="w-4 h-4" />
+              <span>Import Products</span>
             </button>
-            <button
-              type="button"
-              onClick={() => setActiveSubTab('import')}
-              className={`px-3 py-1.5 rounded-lg font-bold flex items-center space-x-1.5 transition-colors ${
-                activeSubTab === 'import'
-                  ? 'bg-primary text-on-primary shadow-sm'
-                  : 'text-light-text-muted hover:text-light-text'
-              }`}
-            >
-              <UploadCloud className="w-3.5 h-3.5" />
-              <span>Bulk Import</span>
-            </button>
-          </div>
+          )}
 
-          {activeSubTab === 'grid' && (
+          {canManage && onAddProduct && (
+            <button
+              type="button"
+              onClick={onAddProduct}
+              data-testid="add-product"
+              className="h-11 px-4 rounded-xl text-sm font-bold bg-primary hover:bg-primary-hover text-on-primary flex items-center space-x-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Product</span>
+            </button>
+          )}
+
+          {(
             <button
               type="button"
               onClick={fetchStockGrid}
@@ -85,16 +91,7 @@ export const StockGridView: React.FC<StockGridViewProps> = ({ apiUrl, activeShop
         </div>
       </div>
 
-      {activeSubTab === 'import' ? (
-        <ImportProductsView
-          apiUrl={apiUrl}
-          activeShop={activeShop || null}
-          onImportComplete={() => {
-            fetchStockGrid();
-            setActiveSubTab('grid');
-          }}
-        />
-      ) : loading ? (
+      {loading ? (
         <div className="py-12 text-center text-xs text-light-text-muted dark:text-dark-text-muted">
           Loading stock counts across shops...
         </div>
@@ -105,14 +102,16 @@ export const StockGridView: React.FC<StockGridViewProps> = ({ apiUrl, activeShop
           <div className="text-xs text-light-text-muted dark:text-dark-text-muted max-w-sm mx-auto">
             Get started by bulk importing your product catalog with size variations.
           </div>
-          <button
-            type="button"
-            onClick={() => setActiveSubTab('import')}
-            className="h-10 px-4 rounded-xl bg-primary text-on-primary text-xs font-bold inline-flex items-center space-x-1.5 shadow-sm"
-          >
-            <UploadCloud className="w-4 h-4" />
-            <span>Import Products Now</span>
-          </button>
+          {canImport && onImport && (
+            <button
+              type="button"
+              onClick={onImport}
+              className="h-11 px-4 rounded-xl bg-primary text-on-primary text-sm font-bold inline-flex items-center space-x-1.5"
+            >
+              <UploadCloud className="w-4 h-4" />
+              <span>Import Products Now</span>
+            </button>
+          )}
         </div>
       ) : (
         <>
@@ -144,6 +143,16 @@ export const StockGridView: React.FC<StockGridViewProps> = ({ apiUrl, activeShop
                   <h3 className="font-bold text-sm mt-0.5">
                     {gridItems[selectedSizeIndex].product_name}
                   </h3>
+                  {canManage && onEditProduct && (
+                    <button
+                      type="button"
+                      onClick={() => onEditProduct(gridItems[selectedSizeIndex].product_id)}
+                      className="mt-2 h-11 px-4 rounded-xl text-sm font-semibold flex items-center space-x-1.5 bg-light-surface-hover dark:bg-dark-surface-hover"
+                    >
+                      <Pencil className="w-4 h-4" />
+                      <span>Edit product</span>
+                    </button>
+                  )}
                   <div className="flex items-center space-x-2 mt-2">
                     <span className="text-xs font-bold px-2 py-0.5 rounded bg-primary/10 text-primary dark:text-primary-tint">
                       Size: {gridItems[selectedSizeIndex].size}
@@ -209,6 +218,7 @@ export const StockGridView: React.FC<StockGridViewProps> = ({ apiUrl, activeShop
                     <th className="py-3 px-4 font-semibold text-center bg-light-surface-hover/50 dark:bg-dark-surface-hover/50 min-w-[90px]">
                       Total
                     </th>
+                    {canManage && <th className="py-3 px-2"><span className="sr-only">Edit</span></th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-light-border dark:divide-dark-border font-mono">
@@ -249,6 +259,18 @@ export const StockGridView: React.FC<StockGridViewProps> = ({ apiUrl, activeShop
                         <td className="py-3 px-4 text-center font-extrabold text-primary dark:text-primary-tint bg-light-surface-hover/30 dark:bg-dark-surface-hover/30">
                           {rowTotal}
                         </td>
+                        {canManage && onEditProduct && (
+                          <td className="py-1 px-2">
+                            <button
+                              type="button"
+                              onClick={() => onEditProduct(item.product_id)}
+                              aria-label={`Edit ${item.product_name}`}
+                              className="w-11 h-11 rounded-xl flex items-center justify-center hover:bg-light-surface-hover dark:hover:bg-dark-surface-hover"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     );
                   })}

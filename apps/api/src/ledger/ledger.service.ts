@@ -47,27 +47,28 @@ export class LedgerService {
       }
 
       // Calculate totals
+      // Compared in whole paisa, because the amount column stores two decimals.
       let totalDebit = 0;
       let totalCredit = 0;
 
       for (const line of entry.lines) {
-        if (!line.amount || line.amount <= 0) {
+        const paisa = Math.round(Number(line.amount) * 100);
+        if (!paisa || paisa <= 0) {
           throw new BadRequestException(`Line amount must be greater than zero. Got: ${line.amount}`);
         }
         if (line.direction === 'debit') {
-          totalDebit += Number(line.amount);
+          totalDebit += paisa;
         } else if (line.direction === 'credit') {
-          totalCredit += Number(line.amount);
+          totalCredit += paisa;
         } else {
           throw new BadRequestException(`Invalid direction: ${line.direction}. Must be debit or credit.`);
         }
       }
 
       // Rule 3: Debits must equal credits
-      const diff = Math.abs(totalDebit - totalCredit);
-      if (diff > 0.001) {
+      if (totalDebit !== totalCredit) {
         throw new BadRequestException(
-          `Unbalanced ledger entry: Total Debits (${totalDebit.toFixed(2)}) != Total Credits (${totalCredit.toFixed(2)})`
+          `Unbalanced ledger entry: Total Debits (${(totalDebit / 100).toFixed(2)}) != Total Credits (${(totalCredit / 100).toFixed(2)})`
         );
       }
 
@@ -131,7 +132,7 @@ export class LedgerService {
             account.id,
             lineLocationId,
             line.direction,
-            line.amount,
+            Math.round(Number(line.amount) * 100) / 100,
             entry.entry_type,
             entry.source_type || null,
             entry.source_id || null,
@@ -233,7 +234,7 @@ export class LedgerService {
    * Lists active accounts, optionally filtered by shop (Rule 1 & Rule 3: shop-linked accounts)
    */
   async getAccounts(shopId?: number): Promise<Account[]> {
-    let sql = 'SELECT id, code, name, type, location_id, is_active FROM accounts WHERE is_active = true';
+    let sql = 'SELECT id, code, name, type, location_id, is_active, payment_method FROM accounts WHERE is_active = true';
     const params: any[] = [];
     if (shopId) {
       sql += ' AND (location_id IS NULL OR location_id = $1)';
@@ -241,6 +242,23 @@ export class LedgerService {
     }
     sql += ' ORDER BY type, name';
     const result = await this.pool.query(sql, params);
+    return result.rows;
+  }
+
+  /**
+   * Accounts that can take money in this shop: its own, plus shared ones with no shop.
+   */
+  async getPaymentAccounts(shopId: number): Promise<Account[]> {
+    const result = await this.pool.query(
+      `SELECT id, code, name, type, location_id, is_active, payment_method
+       FROM accounts
+       WHERE is_active = true
+         AND type = 'asset'
+         AND payment_method IS NOT NULL
+         AND (location_id IS NULL OR location_id = $1)
+       ORDER BY CASE payment_method WHEN 'cash' THEN 0 ELSE 1 END, name`,
+      [shopId]
+    );
     return result.rows;
   }
 }

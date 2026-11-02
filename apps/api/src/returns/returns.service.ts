@@ -62,6 +62,7 @@ export class ReturnsService {
       }
     }
 
+    let committedId: number;
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -136,7 +137,7 @@ export class ReturnsService {
             }
 
             const varRes = await client.query(
-              `SELECT pv.id, pv.product_id, pv.size, pv.sku, p.cost_price, p.selling_price
+              `SELECT pv.id, pv.product_id, pv.size, pv.sku, pv.cost_price, pv.selling_price
                FROM product_variations pv
                JOIN products p ON pv.product_id = p.id
                WHERE pv.id = $1`,
@@ -207,7 +208,7 @@ export class ReturnsService {
           }
 
           const varRes = await client.query(
-            `SELECT pv.id, pv.product_id, pv.size, pv.sku, p.cost_price, p.selling_price
+            `SELECT pv.id, pv.product_id, pv.size, pv.sku, pv.cost_price, pv.selling_price
              FROM product_variations pv
              JOIN products p ON pv.product_id = p.id
              WHERE pv.id = $1`,
@@ -508,14 +509,16 @@ export class ReturnsService {
       }
 
       await client.query('COMMIT');
-
-      return await this.getReturnById(returnId);
+      committedId = returnId;
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
     } finally {
       client.release();
     }
+
+    // Read back after releasing the connection, so waiting sales cannot exhaust the pool.
+    return this.getReturnById(committedId);
   }
 
   async listReturns(shopId?: number, isManual?: boolean): Promise<ReturnRecord[]> {

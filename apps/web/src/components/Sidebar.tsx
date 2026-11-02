@@ -24,7 +24,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
     { id: 'pos', label: 'Sell / POS', icon: ShoppingCart },
     { id: 'returns', label: 'Return & Exchange', icon: RotateCcw },
     { id: 'courier', label: 'Courier & Settlement', icon: Truck },
-    { id: 'cash-closing', label: 'Daily Cash Closing', icon: Banknote },
+    { id: 'cash-closing', label: 'Till', icon: Banknote },
     { id: 'products', label: 'Products & Stock', icon: Package },
     { id: 'expenses', label: 'Daily Expenses', icon: DollarSign },
     { id: 'transfers', label: 'Stock Transfers', icon: ArrowLeftRight },

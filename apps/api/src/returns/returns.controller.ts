@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 import { ReturnsService } from './returns.service';
 import { ShopGuard } from '../shops/shop.guard';
+import { PermissionsGuard } from '../auth/permissions.guard';
+import { RequirePermission } from '../auth/require-permission.decorator';
 import { CreateReturnDto, ReturnRecord } from '@ar-option/shared-types';
 
 @Controller('returns')
@@ -33,7 +35,8 @@ export class ReturnsController {
   }
 
   @Post()
-  @UseGuards(ShopGuard)
+  @UseGuards(ShopGuard, PermissionsGuard)
+  @RequirePermission('returns.create')
   async createReturn(
     @Body() body: CreateReturnDto,
     @Req() req: any
@@ -42,6 +45,8 @@ export class ReturnsController {
   }
 
   @Post(':id/approve')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('returns.approve')
   async approveReturn(
     @Param('id', ParseIntPipe) id: number,
     @Req() req: any

@@ -57,6 +57,8 @@ describe('Step 3: Daily Screens (POS, Expenses & Bulk Import) e2e', () => {
     stockMovementService = app.get<StockMovementService>(StockMovementService);
 
     // Clean test tables
+    await pool.query('DELETE FROM till_movements');
+    await pool.query('DELETE FROM till_sessions');
     await pool.query('DELETE FROM daily_cash_closings');
     await pool.query('DELETE FROM courier_parcel_items');
     await pool.query('DELETE FROM courier_parcels');
@@ -72,6 +74,8 @@ describe('Step 3: Daily Screens (POS, Expenses & Bulk Import) e2e', () => {
     await pool.query('DELETE FROM stock');
     await pool.query('DELETE FROM product_variations');
     await pool.query('DELETE FROM products');
+    await pool.query('DELETE FROM categories');
+    await pool.query('DELETE FROM brands');
     await pool.query('DELETE FROM account_transactions');
     await pool.query('DELETE FROM user_locations');
     await pool.query('DELETE FROM users');
@@ -91,13 +95,13 @@ describe('Step 3: Daily Screens (POS, Expenses & Bulk Import) e2e', () => {
 
     // 2. Create Shop Cash Accounts
     const a1 = await pool.query(
-      "INSERT INTO accounts (code, name, type, location_id, is_active) VALUES ('CASH_GUL_DS', 'Gulshan Cash', 'asset', $1, true) RETURNING id",
+      "INSERT INTO accounts (code, name, type, location_id, is_active, payment_method) VALUES ('CASH_GUL_DS', 'Gulshan Cash', 'asset', $1, true, 'cash') RETURNING id",
       [gulshanShopId]
     );
     gulshanCashAccountId = a1.rows[0].id;
 
     const a2 = await pool.query(
-      "INSERT INTO accounts (code, name, type, location_id, is_active) VALUES ('CASH_DHM_DS', 'Dhanmondi Cash', 'asset', $1, true) RETURNING id",
+      "INSERT INTO accounts (code, name, type, location_id, is_active, payment_method) VALUES ('CASH_DHM_DS', 'Dhanmondi Cash', 'asset', $1, true, 'cash') RETURNING id",
       [dhanmondiShopId]
     );
     dhanmondiCashAccountId = a2.rows[0].id;
@@ -136,6 +140,7 @@ describe('Step 3: Daily Screens (POS, Expenses & Bulk Import) e2e', () => {
         password: 'cashier-password',
         role: 'cashier',
         shop_ids: [gulshanShopId],
+        discount_limit_percent: 10,
       },
     });
     const cashierLogin = await app.inject({
@@ -149,6 +154,7 @@ describe('Step 3: Daily Screens (POS, Expenses & Bulk Import) e2e', () => {
     const prodRes = await app.inject({
       method: 'POST',
       url: '/products',
+        headers: { authorization: `Bearer ${adminToken}` },
       payload: {
         name: 'Cotton Panjabi',
         code: 'PAN-COTTON-01',
@@ -164,6 +170,7 @@ describe('Step 3: Daily Screens (POS, Expenses & Bulk Import) e2e', () => {
     await app.inject({
       method: 'POST',
       url: '/products/initial-stock',
+        headers: { authorization: `Bearer ${adminToken}` },
       payload: {
         variation_id: panjabiSize40VarId,
         location_id: gulshanShopId,
@@ -243,17 +250,19 @@ describe('Step 3: Daily Screens (POS, Expenses & Bulk Import) e2e', () => {
       expect(exp.entry_id).toBeDefined();
 
       // Verify Trial Balance: Dr OPERATING_EXPENSES 750, Cr CASH_GUL_DS 750
-      const tbRes = await app.inject({ method: 'GET', url: '/ledger/trial-balance' });
+      const tbRes = await app.inject({ method: 'GET', url: '/ledger/trial-balance', headers: { authorization: `Bearer ${adminToken}` } });
       const tb = JSON.parse(tbRes.payload);
       expect(tb.isBalanced).toBe(true);
-      expect(tb.totalDebit).toBe(750);
-      expect(tb.totalCredit).toBe(750);
+      // 10,000 of opening stock (10 units at cost 1,000) plus the 750 expense.
+      expect(tb.totalDebit).toBe(10750);
+      expect(tb.totalCredit).toBe(10750);
     });
 
     it('filters expenses by shop in SQL (Section 5.4)', async () => {
       const gRes = await app.inject({
         method: 'GET',
         url: `/expenses?shop_id=${gulshanShopId}`,
+        headers: { authorization: `Bearer ${adminToken}` },
       });
       const gList = JSON.parse(gRes.payload);
       expect(gList.length).toBe(1);
@@ -261,6 +270,7 @@ describe('Step 3: Daily Screens (POS, Expenses & Bulk Import) e2e', () => {
       const dRes = await app.inject({
         method: 'GET',
         url: `/expenses?shop_id=${dhanmondiShopId}`,
+        headers: { authorization: `Bearer ${adminToken}` },
       });
       const dList = JSON.parse(dRes.payload);
       expect(dList.length).toBe(0);
@@ -371,11 +381,11 @@ describe('Step 3: Daily Screens (POS, Expenses & Bulk Import) e2e', () => {
       // Sale revenue: Dr CASH 4000, Cr SALES_REVENUE 4000
       // COGS: Dr COGS 2000, Cr INVENTORY 2000
       // Total debits = 750 + 4000 + 2000 = 6750 == Total credits 6750!
-      const tbRes = await app.inject({ method: 'GET', url: '/ledger/trial-balance' });
+      const tbRes = await app.inject({ method: 'GET', url: '/ledger/trial-balance', headers: { authorization: `Bearer ${adminToken}` } });
       const tb = JSON.parse(tbRes.payload);
       expect(tb.isBalanced).toBe(true);
-      expect(tb.totalDebit).toBe(6750);
-      expect(tb.totalCredit).toBe(6750);
+      expect(tb.totalDebit).toBe(16750);
+      expect(tb.totalCredit).toBe(16750);
     });
 
     it('supports idempotent retry via client_ref without duplicate stock or ledger lines (Rule 6)', async () => {
@@ -426,37 +436,33 @@ describe('Step 3: Daily Screens (POS, Expenses & Bulk Import) e2e', () => {
     });
   });
 
-  describe('Bulk Product & Stock Import (Rule 1 & Rule 4)', () => {
+  describe('Catalog Import (Rule 1 & Rule 4)', () => {
     it('imports products with sizes and shop-stamped initial stock', async () => {
+      const common = { 'Product Name': 'Formal White Shirt', Category: 'Shirts', Brand: 'AR Option', 'Cost Price': '800', 'Selling Price': '1800' };
       const response = await app.inject({
         method: 'POST',
-        url: '/products/bulk-import',
+        url: '/imports/products/commit',
         headers: { authorization: `Bearer ${adminToken}` },
         payload: {
-          items: [
-            {
-              name: 'Formal White Shirt',
-              code: 'SHIRT-WHT-01',
-              category_name: 'Shirts',
-              brand_name: 'AR Option',
-              cost_price: 800,
-              selling_price: 1800,
-              sizes: ['M', 'L', 'XL'],
-              initial_stock: [
-                { shop_code: 'GUL-DS', size: 'M', quantity: 15 },
-                { shop_code: 'DHM-DS', size: 'M', quantity: 10 },
-              ],
-            },
+          client_ref: 'daily-screens-import',
+          rows: [
+            { ...common, Size: 'M', 'Add Stock': '15', Shop: 'GUL-DS' },
+            { ...common, Size: 'M', 'Add Stock': '10', Shop: 'DHM-DS' },
+            { ...common, Size: 'L' },
+            { ...common, Size: 'XL' },
           ],
         },
       });
 
       expect(response.statusCode).toBe(201);
       const body = JSON.parse(response.payload);
-      expect(body.imported_count).toBe(1);
+      expect(body.totals.new_products).toBe(1);
+      expect(body.totals.stock_added).toBe(25);
 
-      // Verify stock was created via movement service in both shops
-      const importedProd = body.items[0];
+      const listed = JSON.parse(
+        (await app.inject({ method: 'GET', url: '/products', headers: { authorization: `Bearer ${adminToken}` } })).payload
+      );
+      const importedProd = listed.find((p: any) => p.name === 'Formal White Shirt');
       const mVarId = importedProd.variations.find((v: any) => v.size === 'M').id;
 
       const gCheck = await stockMovementService.verifyMovementHistoryMatchesStock(

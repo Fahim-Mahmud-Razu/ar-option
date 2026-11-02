@@ -51,6 +51,7 @@ export class CourierService {
       throw new BadRequestException('Courier name is required (e.g. Steadfast, Pathao).');
     }
 
+    let committedId: number;
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -90,7 +91,7 @@ export class CourierService {
         }
 
         const varRes = await client.query(
-          `SELECT pv.id, pv.product_id, pv.size, pv.sku, p.cost_price, p.selling_price
+          `SELECT pv.id, pv.product_id, pv.size, pv.sku, pv.cost_price, pv.selling_price
            FROM product_variations pv
            JOIN products p ON pv.product_id = p.id
            WHERE pv.id = $1`,
@@ -263,14 +264,16 @@ export class CourierService {
       }
 
       await client.query('COMMIT');
-
-      return await this.getParcelById(parcelId);
+      committedId = parcelId;
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
     } finally {
       client.release();
     }
+
+    // Read back after releasing the connection, so waiting sales cannot exhaust the pool.
+    return this.getParcelById(committedId);
   }
 
   /**
@@ -287,6 +290,7 @@ export class CourierService {
     dto: UpdateParcelDeliveryDto,
     user: any
   ): Promise<CourierParcel> {
+    let committedId: number;
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -351,14 +355,16 @@ export class CourierService {
           direction: 'debit' | 'credit';
           amount: number;
           notes: string;
-        }[] = [
-          {
+        }[] = [];
+
+        if (collectibleAmount > 0) {
+          lines.push({
             account_code: 'COURIER_RECEIVABLE',
             direction: 'debit',
             amount: collectibleAmount,
             notes: `Receivable from ${parcel.courier_name} for ${parcel.parcel_code}`,
-          },
-        ];
+          });
+        }
 
         if (advanceAmount > 0) {
           lines.push({
@@ -463,14 +469,16 @@ export class CourierService {
       }
 
       await client.query('COMMIT');
-
-      return await this.getParcelById(parcelId);
+      committedId = parcelId;
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
     } finally {
       client.release();
     }
+
+    // Read back after releasing the connection, so waiting sales cannot exhaust the pool.
+    return this.getParcelById(committedId);
   }
 
   /**
@@ -498,6 +506,7 @@ export class CourierService {
       throw new BadRequestException('Payment account (Bank/Cash) is required.');
     }
 
+    let committedId: number;
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -670,14 +679,16 @@ export class CourierService {
       );
 
       await client.query('COMMIT');
-
-      return await this.getSettlementById(settlementId);
+      committedId = settlementId;
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
     } finally {
       client.release();
     }
+
+    // Read back after releasing the connection, so waiting sales cannot exhaust the pool.
+    return this.getSettlementById(committedId);
   }
 
   async listParcels(

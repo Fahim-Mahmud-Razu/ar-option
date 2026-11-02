@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Server,
   Database,
@@ -26,16 +26,44 @@ import { PosView } from './components/PosView';
 import { ExpensesView } from './components/ExpensesView';
 import { ReturnsView } from './components/ReturnsView';
 import { CourierView } from './components/CourierView';
-import { DailyCashClosingView } from './components/DailyCashClosingView';
+import { TillView } from './components/till/TillView';
+import { CashInHandCard } from './components/till/CashInHandCard';
+import { LoginView } from './components/LoginView';
+import { ProductFormView } from './components/products/ProductFormView';
+import { ImportProductsView } from './components/imports/ImportProductsView';
+import { apiFetch, getToken, setToken, SESSION_EXPIRED_EVENT } from './lib/api';
+import { readStored, writeStored } from './lib/storage';
 import type {
   HealthResponse,
   Shop,
   TrialBalanceItem,
   Account,
   DashboardKpis,
+  AuthResponse,
+  User,
 } from '@ar-option/shared-types';
 
-export const App: React.FC = () => {
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const THEME_KEY = 'ar_option_theme';
+const SHOP_KEY = 'ar_option_shop';
+
+const startsDark = (): boolean => {
+  const saved = readStored(THEME_KEY);
+  if (saved) return saved === 'dark';
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+};
+
+type Session = Pick<AuthResponse, 'user' | 'permissions'>;
+
+interface AppShellProps {
+  session: Session;
+  onSignOut: () => void;
+}
+
+const AppShell: React.FC<AppShellProps> = ({ session, onSignOut }) => {
+  const { user, permissions } = session;
+  const isAdmin = user.role === 'admin';
+
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +71,10 @@ export const App: React.FC = () => {
   const [shops, setShops] = useState<Shop[]>([]);
   const [activeShop, setActiveShop] = useState<Shop | null>(null);
   const [activeTab, setActiveTab] = useState<string>('dashboard');
-  const [darkMode, setDarkMode] = useState<boolean>(false);
+  const [inner, setInner] = useState<{ kind: 'product-form'; id: number | null } | { kind: 'import' } | null>(null);
+  const [stockVersion, setStockVersion] = useState<number>(0);
+  const productFormDirty = useRef<boolean>(false);
+  const [darkMode, setDarkMode] = useState<boolean>(startsDark);
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [dashboardKpis, setDashboardKpis] = useState<DashboardKpis | null>(null);
@@ -65,33 +96,80 @@ export const App: React.FC = () => {
     message: string;
   } | null>(null);
 
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  const apiUrl = API_URL;
 
-  // Theme toggle
+  // Follows the device on first use. A manual choice persists on this device.
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+  }, [darkMode]);
+
   const toggleTheme = () => {
-    setDarkMode((prev) => {
-      const next = !prev;
-      if (next) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
+    const next = !darkMode;
+    writeStored(THEME_KEY, next ? 'dark' : 'light');
+    setDarkMode(next);
+  };
+
+  // The inner screen takes one history entry, so the Android back gesture closes it first.
+  const openInner = (next: NonNullable<typeof inner>) => {
+    window.history.pushState({ layer: next.kind }, '');
+    setInner(next);
+  };
+  const openProductForm = (id: number | null) => openInner({ kind: 'product-form', id });
+
+  const handleProductDirty = useCallback((dirty: boolean) => {
+    productFormDirty.current = dirty;
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'products') setInner(null);
+  }, [activeTab]);
+
+  const closeInner = () => {
+    if (productFormDirty.current && !window.confirm('Leave without saving? Your changes will be lost.')) return;
+    productFormDirty.current = false;
+    window.history.back();
+  };
+
+  useEffect(() => {
+    const handlePop = () => {
+      // A sheet closing leaves the inner screen's own history entry on top. Only that entry closes the screen.
+      if (window.history.state?.layer) return;
+      if (productFormDirty.current && !window.confirm('Leave without saving? Your changes will be lost.')) {
+        window.history.pushState({ layer: 'product-form' }, '');
+        return;
       }
-      return next;
-    });
+      productFormDirty.current = false;
+      setInner(null);
+    };
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+  }, []);
+
+  const selectShop = (shop: Shop | null) => {
+    writeStored(SHOP_KEY, shop ? String(shop.id) : null);
+    setActiveShop(shop);
   };
 
   // Fetch Shops
   const fetchShops = useCallback(() => {
-    fetch(`${apiUrl}/shops`)
+    apiFetch(`${apiUrl}/shops`)
       .then((res) => (res.ok ? res.json() : []))
       .then((data: Shop[]) => {
-        setShops(data);
-        if (data.length > 0 && !activeShop) {
-          setActiveShop(data[0]);
-        }
+        const allowedIds = user.assigned_shops?.map((s) => s.id) ?? [];
+        const usable = isAdmin ? data : data.filter((s) => allowedIds.includes(s.id));
+        setShops(usable);
+
+        // Rule 1: a shop is never guessed. Only a remembered choice or a user's only shop applies.
+        setActiveShop((current) => {
+          if (current) return current;
+          const savedId = Number(readStored(SHOP_KEY));
+          const saved = usable.find((s) => s.id === savedId);
+          if (saved) return saved;
+          return !isAdmin && usable.length === 1 ? usable[0] : null;
+        });
       })
       .catch(() => {});
-  }, [apiUrl, activeShop]);
+  }, [apiUrl, isAdmin, user.assigned_shops]);
 
   // Fetch Trial Balance
   const fetchTrialBalance = useCallback(
@@ -99,7 +177,7 @@ export const App: React.FC = () => {
       const url = shopId
         ? `${apiUrl}/ledger/trial-balance?shop_id=${shopId}`
         : `${apiUrl}/ledger/trial-balance`;
-      fetch(url)
+      apiFetch(url)
         .then((res) => (res.ok ? res.json() : null))
         .then((tb) => {
           if (tb) setTrialBalance(tb);
@@ -115,7 +193,7 @@ export const App: React.FC = () => {
       const url = shopId
         ? `${apiUrl}/reports/dashboard-kpis?shop_id=${shopId}`
         : `${apiUrl}/reports/dashboard-kpis`;
-      fetch(url)
+      apiFetch(url)
         .then((res) => (res.ok ? res.json() : null))
         .then((kpis) => {
           if (kpis) setDashboardKpis(kpis);
@@ -131,7 +209,7 @@ export const App: React.FC = () => {
       const url = shopId
         ? `${apiUrl}/ledger/accounts?shop_id=${shopId}`
         : `${apiUrl}/ledger/accounts`;
-      fetch(url)
+      apiFetch(url)
         .then((res) => (res.ok ? res.json() : []))
         .then((data: Account[]) => {
           setAccounts(data);
@@ -153,7 +231,7 @@ export const App: React.FC = () => {
   useEffect(() => {
     let isMounted = true;
 
-    fetch(`${apiUrl}/health`)
+    apiFetch(`${apiUrl}/health`)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         return res.json();
@@ -218,7 +296,7 @@ export const App: React.FC = () => {
 
     setPosting(true);
     try {
-      const res = await fetch(`${apiUrl}/ledger/entries`, {
+      const res = await apiFetch(`${apiUrl}/ledger/entries`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -266,9 +344,12 @@ export const App: React.FC = () => {
         title="AR Option"
         shops={shops}
         activeShop={activeShop}
-        onSelectShop={setActiveShop}
+        onSelectShop={selectShop}
         darkMode={darkMode}
         onToggleTheme={toggleTheme}
+        isAdmin={isAdmin}
+        userName={user.name}
+        onSignOut={onSignOut}
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -279,6 +360,7 @@ export const App: React.FC = () => {
             <PosView
               activeShop={activeShop}
               apiUrl={apiUrl}
+              onExit={() => setActiveTab('dashboard')}
               onSaleCompleted={() => {
                 fetchTrialBalance(activeShop?.id);
                 fetchDashboardKpis(activeShop?.id);
@@ -346,12 +428,13 @@ export const App: React.FC = () => {
               />
             )}
 
-            {/* Tab: Daily Cash Closing (Step 6 Go-Live) */}
+            {/* Tab: Till (open, cash in and out, close and handover, closing history) */}
             {activeTab === 'cash-closing' && (
-              <DailyCashClosingView
+              <TillView
                 activeShop={activeShop}
                 apiUrl={apiUrl}
-                onClosingCompleted={() => {
+                permissions={permissions}
+                onChanged={() => {
                   fetchTrialBalance(activeShop?.id);
                   fetchDashboardKpis(activeShop?.id);
                 }}
@@ -359,8 +442,44 @@ export const App: React.FC = () => {
             )}
 
             {/* Tab 2: Products & Stock Grid */}
-            {activeTab === 'products' && (
-              <StockGridView apiUrl={apiUrl} activeShop={activeShop} />
+            {activeTab === 'products' && inner?.kind === 'import' && (
+              <ImportProductsView
+                apiUrl={apiUrl}
+                activeShop={activeShop}
+                onClose={closeInner}
+                onImported={() => {
+                  setStockVersion((v) => v + 1);
+                  fetchDashboardKpis(activeShop?.id);
+                  fetchTrialBalance(activeShop?.id);
+                }}
+              />
+            )}
+            {activeTab === 'products' && inner?.kind === 'product-form' && (
+              <ProductFormView
+                apiUrl={apiUrl}
+                productId={inner.id}
+                shops={shops}
+                onClose={closeInner}
+                onDirtyChange={handleProductDirty}
+                onSaved={() => {
+                  productFormDirty.current = false;
+                  setStockVersion((v) => v + 1);
+                  fetchDashboardKpis(activeShop?.id);
+                  fetchTrialBalance(activeShop?.id);
+                  window.history.back();
+                }}
+              />
+            )}
+            {activeTab === 'products' && !inner && (
+              <StockGridView
+                key={stockVersion}
+                apiUrl={apiUrl}
+                canManage={permissions.includes('products.manage')}
+                canImport={permissions.includes('products.import')}
+                onImport={() => openInner({ kind: 'import' })}
+                onAddProduct={() => openProductForm(null)}
+                onEditProduct={openProductForm}
+              />
             )}
 
             {/* Tab 3: Daily Expenses */}
@@ -436,6 +555,15 @@ export const App: React.FC = () => {
                 </div>
               </div>
 
+              {permissions.includes('till.view') && (
+                <CashInHandCard
+                  activeShop={activeShop}
+                  apiUrl={apiUrl}
+                  refreshKey={dashboardKpis}
+                  onOpenTill={() => setActiveTab('cash-closing')}
+                />
+              )}
+
               {/* Quick Actions Grid for Fast Navigation on all devices */}
               <div className="bg-light-surface dark:bg-dark-surface p-4 rounded-2xl border border-light-border dark:border-dark-border shadow-sm space-y-3">
                 <div className="flex items-center justify-between">
@@ -481,7 +609,7 @@ export const App: React.FC = () => {
                     className="p-3 rounded-xl border border-light-border dark:border-dark-border bg-light-surface-hover dark:bg-dark-surface-hover hover:border-primary flex flex-col items-center justify-center space-y-1 transition-all"
                   >
                     <Banknote className="w-5 h-5 text-primary dark:text-primary-tint" />
-                    <span className="text-xs font-bold">Cash Closing</span>
+                    <span className="text-xs font-bold">Till</span>
                   </button>
                   <button
                     type="button"
@@ -514,6 +642,7 @@ export const App: React.FC = () => {
               </div>
 
               {/* Interactive Ledger Posting Card (Prove Rule 1 & Rule 3) */}
+              {permissions.includes('ledger.post') && (
               <div className="bg-light-surface dark:bg-dark-surface rounded-2xl border border-light-border dark:border-dark-border p-4 md:p-6 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
@@ -629,6 +758,7 @@ export const App: React.FC = () => {
                   </div>
                 </form>
               </div>
+              )}
 
               {/* Ledger & Trial Balance Live Table */}
               <div className="bg-light-surface dark:bg-dark-surface rounded-2xl border border-light-border dark:border-dark-border p-4 md:p-6 shadow-sm space-y-4">
@@ -685,6 +815,74 @@ export const App: React.FC = () => {
 
       <BottomTabs activeTab={activeTab} onSelectTab={setActiveTab} />
     </div>
+  );
+};
+
+/** Decides between the login screen and the app. An expired session keeps the app mounted. */
+export const App: React.FC = () => {
+  const [session, setSession] = useState<Session | null>(null);
+  const [expired, setExpired] = useState<boolean>(false);
+  const [checking, setChecking] = useState<boolean>(() => getToken() !== null);
+
+  useEffect(() => {
+    if (!getToken()) return;
+    let isMounted = true;
+
+    apiFetch(`${API_URL}/auth/me`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { user: User; permissions: string[] } | null) => {
+        if (!isMounted) return;
+        if (data) {
+          setSession(data);
+        } else {
+          setToken(null);
+        }
+      })
+      .catch(() => {
+        if (isMounted) setToken(null);
+      })
+      .finally(() => {
+        if (isMounted) setChecking(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleExpired = () => setExpired(true);
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleExpired);
+  }, []);
+
+  const handleSignedIn = ({ token, user, permissions }: AuthResponse) => {
+    setToken(token);
+    setSession({ user, permissions });
+    setExpired(false);
+  };
+
+  const handleSignOut = () => {
+    setToken(null);
+    setSession(null);
+    setExpired(false);
+  };
+
+  if (checking) {
+    return <div className="min-h-screen bg-light-bg dark:bg-dark-bg" aria-busy="true" />;
+  }
+
+  return (
+    <>
+      {session && <AppShell session={session} onSignOut={handleSignOut} />}
+      {(!session || expired) && (
+        <LoginView
+          apiUrl={API_URL}
+          expiredEmail={expired ? session?.user.email : undefined}
+          onSignedIn={handleSignedIn}
+        />
+      )}
+    </>
   );
 };
 

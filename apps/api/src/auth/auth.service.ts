@@ -1,6 +1,7 @@
 import {
   Injectable,
   Inject,
+  OnModuleInit,
   BadRequestException,
   UnauthorizedException,
   ForbiddenException,
@@ -14,14 +15,50 @@ import {
   AuthResponse,
   User,
   Shop,
+  PermissionKey,
 } from '@ar-option/shared-types';
 import * as crypto from 'crypto';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'ar-option-super-secret-key- Singapore-2026';
+const ALL_PERMISSIONS: PermissionKey[] = [
+  'shops.manage',
+  'transfers.send',
+  'transfers.receive',
+  'returns.create',
+  'returns.manual',
+  'returns.approve',
+  'courier.view',
+  'courier.manage',
+  'courier.settle',
+  'pos.edit_price',
+  'pos.sell',
+  'cash.reconcile',
+  'expenses.create',
+  'products.manage',
+  'products.import',
+  'ledger.post',
+  'till.view',
+  'till.open',
+  'till.setup',
+  'till.cash_in',
+  'till.cash_out',
+  'till.close',
+];
+
+function getJwtSecret(): string {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET must be set in production.');
+  }
+  return 'ar-option-local-development-only';
+}
 
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleInit {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
+
+  onModuleInit(): void {
+    getJwtSecret();
+  }
 
   /**
    * Secure password hashing with salt using crypto.pbkdf2
@@ -54,7 +91,7 @@ export class AuthService {
     const data = JSON.stringify({ ...payload, exp });
     const b64Data = Buffer.from(data).toString('base64url');
     const signature = crypto
-      .createHmac('sha256', JWT_SECRET)
+      .createHmac('sha256', getJwtSecret())
       .update(b64Data)
       .digest('base64url');
     return `${b64Data}.${signature}`;
@@ -69,11 +106,15 @@ export class AuthService {
       if (parts.length !== 2) return null;
       const [b64Data, signature] = parts;
       const expectedSignature = crypto
-        .createHmac('sha256', JWT_SECRET)
+        .createHmac('sha256', getJwtSecret())
         .update(b64Data)
         .digest('base64url');
 
-      if (signature !== expectedSignature) return null;
+      const given = Buffer.from(signature);
+      const expected = Buffer.from(expectedSignature);
+      if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
+        return null;
+      }
 
       const payload = JSON.parse(
         Buffer.from(b64Data, 'base64url').toString('utf8')
@@ -82,7 +123,8 @@ export class AuthService {
         return null;
       }
 
-      return await this.getUserById(payload.id);
+      const user = await this.getUserById(payload.id);
+      return user && user.is_active ? user : null;
     } catch {
       return null;
     }
@@ -90,7 +132,7 @@ export class AuthService {
 
   async getUserById(id: number): Promise<User | null> {
     const userRes = await this.pool.query(
-      'SELECT id, name, email, role, is_active FROM users WHERE id = $1',
+      'SELECT id, name, email, role, is_active, discount_limit_percent FROM users WHERE id = $1',
       [id]
     );
     if (userRes.rows.length === 0) return null;
@@ -104,6 +146,7 @@ export class AuthService {
       email: row.email,
       role: row.role,
       is_active: row.is_active,
+      discount_limit_percent: Number(row.discount_limit_percent),
       assigned_shops: shops,
     };
   }
@@ -122,18 +165,7 @@ export class AuthService {
 
   async getUserPermissions(role: string): Promise<string[]> {
     if (role === 'admin') {
-      return [
-        'shops.manage',
-        'transfers.send',
-        'transfers.receive',
-        'returns.create',
-        'returns.manual',
-        'returns.approve',
-        'courier.view',
-        'courier.manage',
-        'courier.settle',
-        'pos.edit_price',
-      ];
+      return [...ALL_PERMISSIONS];
     }
     const res = await this.pool.query(
       'SELECT permission FROM role_permissions WHERE role = $1',
@@ -147,7 +179,7 @@ export class AuthService {
    */
   async login(dto: LoginDto): Promise<AuthResponse> {
     const res = await this.pool.query(
-      'SELECT id, name, email, password_hash, role, is_active FROM users WHERE email = $1',
+      'SELECT id, name, email, password_hash, role, is_active, discount_limit_percent FROM users WHERE email = $1',
       [dto.email.trim().toLowerCase()]
     );
 
@@ -174,6 +206,7 @@ export class AuthService {
       email: row.email,
       role: row.role,
       is_active: row.is_active,
+      discount_limit_percent: Number(row.discount_limit_percent),
       assigned_shops: shops,
     };
 
@@ -220,10 +253,10 @@ export class AuthService {
     const role = totalUsers === 0 ? 'admin' : dto.role || 'staff';
 
     const insertRes = await this.pool.query(
-      `INSERT INTO users (name, email, password_hash, role, is_active)
-       VALUES ($1, $2, $3, $4, true)
-       RETURNING id, name, email, role, is_active`,
-      [dto.name.trim(), email, passwordHash, role]
+      `INSERT INTO users (name, email, password_hash, role, is_active, discount_limit_percent)
+       VALUES ($1, $2, $3, $4, true, $5)
+       RETURNING id, name, email, role, is_active, discount_limit_percent`,
+      [dto.name.trim(), email, passwordHash, role, this.checkDiscountLimit(dto.discount_limit_percent ?? 0)]
     );
 
     const newUser = insertRes.rows[0];
@@ -243,19 +276,48 @@ export class AuthService {
     const shops = await this.getUserAssignedShops(newUser.id);
     return {
       ...newUser,
+      discount_limit_percent: Number(newUser.discount_limit_percent),
       assigned_shops: shops,
     };
   }
 
+  /**
+   * True only until the first user exists, so a fresh deployment can create its admin.
+   */
+  async needsSetup(): Promise<boolean> {
+    const res = await this.pool.query('SELECT 1 FROM users LIMIT 1');
+    return res.rows.length === 0;
+  }
+
+  async updateDiscountLimit(userId: number, percent: number): Promise<User> {
+    const res = await this.pool.query(
+      'UPDATE users SET discount_limit_percent = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id',
+      [this.checkDiscountLimit(percent), userId]
+    );
+    if (res.rows.length === 0) {
+      throw new NotFoundException(`User #${userId} not found.`);
+    }
+    return (await this.getUserById(userId)) as User;
+  }
+
+  private checkDiscountLimit(percent: number): number {
+    const value = Number(percent);
+    if (!Number.isFinite(value) || value < 0 || value > 100) {
+      throw new BadRequestException('Discount limit must be between 0 and 100 percent.');
+    }
+    return value;
+  }
+
   async listUsers(): Promise<User[]> {
     const res = await this.pool.query(
-      'SELECT id, name, email, role, is_active FROM users ORDER BY id ASC'
+      'SELECT id, name, email, role, is_active, discount_limit_percent FROM users ORDER BY id ASC'
     );
     const users: User[] = [];
     for (const row of res.rows) {
       const shops = await this.getUserAssignedShops(row.id);
       users.push({
         ...row,
+        discount_limit_percent: Number(row.discount_limit_percent),
         assigned_shops: shops,
       });
     }

@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash VARCHAR(255) NOT NULL,
   role VARCHAR(50) NOT NULL DEFAULT 'staff',
   is_active BOOLEAN NOT NULL DEFAULT true,
+  discount_limit_percent NUMERIC(5, 2) NOT NULL DEFAULT 0
+    CONSTRAINT chk_users_discount_limit CHECK (discount_limit_percent >= 0 AND discount_limit_percent <= 100),
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -48,9 +50,13 @@ CREATE TABLE IF NOT EXISTS accounts (
   type VARCHAR(20) NOT NULL CHECK (type IN ('asset', 'liability', 'equity', 'revenue', 'expense')),
   location_id INTEGER REFERENCES locations(id) ON DELETE SET NULL,
   is_active BOOLEAN NOT NULL DEFAULT true,
+  payment_method VARCHAR(20)
+    CONSTRAINT chk_accounts_payment_method CHECK (payment_method IS NULL OR payment_method IN ('cash', 'card', 'bkash', 'nagad', 'rocket', 'bank')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_accounts_shop_cash ON accounts(location_id) WHERE payment_method = 'cash';
 
 CREATE TABLE IF NOT EXISTS account_transactions (
   id BIGSERIAL PRIMARY KEY,
@@ -74,12 +80,39 @@ CREATE INDEX IF NOT EXISTS idx_account_tx_account_id ON account_transactions(acc
 CREATE INDEX IF NOT EXISTS idx_account_tx_entry_type ON account_transactions(entry_type);
 CREATE INDEX IF NOT EXISTS idx_account_tx_client_ref ON account_transactions(client_ref) WHERE client_ref IS NOT NULL;
 
+CREATE TABLE IF NOT EXISTS categories (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  parent_id INTEGER REFERENCES categories(id) ON DELETE RESTRICT,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_categories_parent_name ON categories (COALESCE(parent_id, 0), lower(name));
+
+CREATE TABLE IF NOT EXISTS brands (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_brands_name ON brands (lower(name));
+
+CREATE SEQUENCE IF NOT EXISTS product_sku_seq START WITH 100001;
+
 CREATE TABLE IF NOT EXISTS products (
   id SERIAL PRIMARY KEY,
   name VARCHAR(150) NOT NULL,
   code VARCHAR(50) NOT NULL UNIQUE,
   category_name VARCHAR(100),
   brand_name VARCHAR(100),
+  category_id INTEGER REFERENCES categories(id),
+  sub_category_id INTEGER REFERENCES categories(id),
+  brand_id INTEGER REFERENCES brands(id),
+  unit VARCHAR(20) NOT NULL DEFAULT 'pcs',
+  alert_quantity INTEGER NOT NULL DEFAULT 0,
+  -- Old product-level prices stay until migration 011. Each size has its own price now.
   cost_price NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (cost_price >= 0),
   selling_price NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (selling_price >= 0),
   is_active BOOLEAN NOT NULL DEFAULT true,
@@ -92,8 +125,15 @@ CREATE TABLE IF NOT EXISTS product_variations (
   product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
   size VARCHAR(50) NOT NULL DEFAULT 'Standard',
   sku VARCHAR(70) NOT NULL UNIQUE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  cost_price NUMERIC(14, 2) NOT NULL DEFAULT 0,
+  selling_price NUMERIC(14, 2) NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT chk_variations_prices CHECK (cost_price >= 0 AND selling_price >= 0)
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_variations_product_size ON product_variations (product_id, lower(size));
 
 CREATE TABLE IF NOT EXISTS stock (
   id SERIAL PRIMARY KEY,
@@ -368,3 +408,85 @@ CREATE TABLE IF NOT EXISTS daily_cash_closings (
 
 CREATE INDEX IF NOT EXISTS idx_daily_cash_closings_location_id ON daily_cash_closings(location_id);
 CREATE INDEX IF NOT EXISTS idx_daily_cash_closings_closing_date ON daily_cash_closings(closing_date);
+
+INSERT INTO accounts (code, name, type)
+VALUES ('INVENTORY_ADJUSTMENT', 'Inventory Adjustment', 'expense')
+ON CONFLICT (code) DO NOTHING;
+
+CREATE SEQUENCE IF NOT EXISTS import_batch_seq START WITH 1;
+
+CREATE TABLE IF NOT EXISTS import_batches (
+  id SERIAL PRIMARY KEY,
+  batch_no VARCHAR(30) NOT NULL UNIQUE,
+  client_ref VARCHAR(100) NOT NULL UNIQUE,
+  file_name VARCHAR(255),
+  totals JSONB NOT NULL,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO accounts (code, name, type)
+VALUES
+  ('OWNER_DRAWINGS', 'Owner Drawings', 'equity'),
+  ('TILL_OVER_SHORT', 'Till Over / Short', 'expense')
+ON CONFLICT (code) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS till_sessions (
+  id BIGSERIAL PRIMARY KEY,
+  location_id INTEGER NOT NULL REFERENCES locations(id),
+  status VARCHAR(10) NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')),
+  opened_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  opened_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  opening_float NUMERIC(15, 2) NOT NULL CHECK (opening_float >= 0),
+  open_adjustment NUMERIC(15, 2) NOT NULL DEFAULT 0,
+  open_reason TEXT,
+  open_note TEXT,
+  open_client_ref VARCHAR(100) NOT NULL UNIQUE,
+  closed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  closed_at TIMESTAMPTZ,
+  expected_cash NUMERIC(15, 2),
+  counted_cash NUMERIC(15, 2),
+  difference NUMERIC(15, 2),
+  difference_reason TEXT,
+  handover_amount NUMERIC(15, 2),
+  retained_amount NUMERIC(15, 2),
+  close_note TEXT,
+  close_client_ref VARCHAR(100) UNIQUE,
+  daily_closing_id BIGINT REFERENCES daily_cash_closings(id) ON DELETE SET NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_till_sessions_one_open
+  ON till_sessions(location_id) WHERE status = 'open';
+CREATE INDEX IF NOT EXISTS idx_till_sessions_location ON till_sessions(location_id, opened_at DESC);
+
+CREATE TABLE IF NOT EXISTS till_movements (
+  id BIGSERIAL PRIMARY KEY,
+  session_id BIGINT NOT NULL REFERENCES till_sessions(id),
+  location_id INTEGER NOT NULL REFERENCES locations(id),
+  kind VARCHAR(12) NOT NULL CHECK (kind IN ('pay_in', 'pay_out', 'owner_pull')),
+  amount NUMERIC(15, 2) NOT NULL CHECK (amount > 0),
+  category_id INTEGER REFERENCES expense_categories(id),
+  note TEXT,
+  entry_id UUID,
+  expense_id INTEGER,
+  client_ref VARCHAR(100) NOT NULL UNIQUE,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_till_movements_session ON till_movements(session_id);
+
+INSERT INTO role_permissions (role, permission)
+VALUES
+  ('manager', 'till.view'),
+  ('manager', 'till.open'),
+  ('manager', 'till.setup'),
+  ('manager', 'till.cash_in'),
+  ('manager', 'till.cash_out'),
+  ('manager', 'till.close'),
+  ('cashier', 'till.view'),
+  ('cashier', 'till.open'),
+  ('cashier', 'till.cash_in'),
+  ('cashier', 'till.cash_out'),
+  ('cashier', 'till.close')
+ON CONFLICT DO NOTHING;

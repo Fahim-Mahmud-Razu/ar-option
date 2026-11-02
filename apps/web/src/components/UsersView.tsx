@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Users, UserPlus, Store, Check, X } from 'lucide-react';
 import type { User, Shop, CreateUserDto } from '@ar-option/shared-types';
+import { apiFetch } from '../lib/api';
 
 interface UsersViewProps {
   apiUrl: string;
@@ -16,6 +17,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ apiUrl, shops }) => {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [selectedShopIds, setSelectedShopIds] = useState<number[]>([]);
   const [savingShops, setSavingShops] = useState<boolean>(false);
+  const [discountLimit, setDiscountLimit] = useState<string>('0');
 
   // Add user modal
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
@@ -28,7 +30,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ apiUrl, shops }) => {
 
   const fetchUsers = () => {
     setLoading(true);
-    fetch(`${apiUrl}/auth/users`)
+    apiFetch(`${apiUrl}/auth/users`)
       .then((res) => {
         if (!res.ok) throw new Error('Failed to load users');
         return res.json();
@@ -50,6 +52,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ apiUrl, shops }) => {
   const handleOpenEditShops = (user: User) => {
     setEditingUser(user);
     setSelectedShopIds(user.assigned_shops?.map((s) => s.id) || []);
+    setDiscountLimit(String(user.discount_limit_percent ?? 0));
   };
 
   const toggleShopSelection = (shopId: number) => {
@@ -64,7 +67,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ apiUrl, shops }) => {
 
     setSavingShops(true);
     try {
-      const res = await fetch(`${apiUrl}/auth/users/${editingUser.id}/shops`, {
+      const res = await apiFetch(`${apiUrl}/auth/users/${editingUser.id}/shops`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ shop_ids: selectedShopIds }),
@@ -73,6 +76,17 @@ export const UsersView: React.FC<UsersViewProps> = ({ apiUrl, shops }) => {
       if (!res.ok) {
         const errData = await res.json();
         throw new Error(errData.message || 'Failed to update shops');
+      }
+
+      const limitRes = await apiFetch(`${apiUrl}/auth/users/${editingUser.id}/discount-limit`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ discount_limit_percent: Number(discountLimit) }),
+      });
+
+      if (!limitRes.ok) {
+        const errData = await limitRes.json();
+        throw new Error(errData.message || 'Failed to update discount limit');
       }
 
       setEditingUser(null);
@@ -101,7 +115,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ apiUrl, shops }) => {
         shop_ids: newShopIds,
       };
 
-      const res = await fetch(`${apiUrl}/auth/register`, {
+      const res = await apiFetch(`${apiUrl}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dto),
@@ -281,6 +295,26 @@ export const UsersView: React.FC<UsersViewProps> = ({ apiUrl, shops }) => {
                 })}
               </div>
 
+              <div>
+                <label
+                  htmlFor="discount-limit"
+                  className="block text-xs font-semibold text-light-text-muted dark:text-dark-text-muted mb-1"
+                >
+                  Discount Limit (%)
+                </label>
+                <input
+                  id="discount-limit"
+                  type="text"
+                  inputMode="decimal"
+                  value={discountLimit}
+                  onChange={(e) => setDiscountLimit(e.target.value)}
+                  className="w-full h-11 px-3 rounded-xl text-xs font-mono bg-light-surface-hover dark:bg-dark-surface-hover border border-light-border dark:border-dark-border focus:outline-none focus:ring-2 focus:ring-focus-ring"
+                />
+                <p className="text-xs text-light-text-muted dark:text-dark-text-muted mt-1">
+                  The most this user can take off a sale. Admins have no limit.
+                </p>
+              </div>
+
               <div className="pt-2 flex items-center justify-end space-x-3">
                 <button
                   type="button"
@@ -294,7 +328,7 @@ export const UsersView: React.FC<UsersViewProps> = ({ apiUrl, shops }) => {
                   disabled={savingShops}
                   className="h-11 px-5 rounded-xl text-xs font-bold bg-primary text-on-primary hover:bg-primary-hover disabled:opacity-50"
                 >
-                  {savingShops ? 'Saving...' : 'Save Mapping'}
+                  {savingShops ? 'Saving...' : 'Save'}
                 </button>
               </div>
             </form>

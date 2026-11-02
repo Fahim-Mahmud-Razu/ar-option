@@ -18,6 +18,7 @@ import type {
   StockByShopGridItem,
   Sale,
 } from '@ar-option/shared-types';
+import { apiFetch } from '../lib/api';
 
 interface ReturnsViewProps {
   activeShop: Shop | null;
@@ -103,7 +104,7 @@ export const ReturnsView: React.FC<ReturnsViewProps> = ({
   // Fetch Accounts for active shop
   const fetchAccounts = useCallback(async (shopId: number) => {
     try {
-      const res = await fetch(`${apiUrl}/ledger/accounts?shop_id=${shopId}`);
+      const res = await apiFetch(`${apiUrl}/ledger/payment-accounts?shop_id=${shopId}`);
       if (res.ok) {
         const data: Account[] = await res.json();
         const assetAccounts = data.filter((a) => a.type === 'asset');
@@ -121,7 +122,7 @@ export const ReturnsView: React.FC<ReturnsViewProps> = ({
   // Fetch Stock Catalog
   const fetchStockGrid = useCallback(async () => {
     try {
-      const res = await fetch(`${apiUrl}/reports/stock-by-shop`);
+      const res = await apiFetch(`${apiUrl}/reports/stock-by-shop`);
       if (res.ok) {
         const data: StockByShopGridItem[] = await res.json();
         setStockGrid(data);
@@ -138,7 +139,7 @@ export const ReturnsView: React.FC<ReturnsViewProps> = ({
       const url = activeShop
         ? `${apiUrl}/returns?shop_id=${activeShop.id}`
         : `${apiUrl}/returns`;
-      const res = await fetch(url);
+      const res = await apiFetch(url);
       if (res.ok) {
         const data: ReturnRecord[] = await res.json();
         setReturnsList(data);
@@ -168,7 +169,7 @@ export const ReturnsView: React.FC<ReturnsViewProps> = ({
     setLinkedSale(null);
 
     try {
-      const res = await fetch(`${apiUrl}/pos/sales`);
+      const res = await apiFetch(`${apiUrl}/pos/sales`);
       if (res.ok) {
         const sales: Sale[] = await res.json();
         const found = sales.find(
@@ -386,7 +387,7 @@ export const ReturnsView: React.FC<ReturnsViewProps> = ({
         ],
       };
 
-      const res = await fetch(`${apiUrl}/returns`, {
+      const res = await apiFetch(`${apiUrl}/returns`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

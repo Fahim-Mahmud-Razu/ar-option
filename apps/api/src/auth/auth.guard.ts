@@ -2,17 +2,22 @@ import {
   Injectable,
   CanActivate,
   ExecutionContext,
+  UnauthorizedException,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { AuthService } from './auth.service';
+import { PUBLIC_KEY } from './public.decorator';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly reflector: Reflector
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest();
     const authHeader = req.headers?.['authorization'];
-    const userIdHeader = req.headers?.['x-user-id'];
 
     if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7).trim();
@@ -20,17 +25,17 @@ export class AuthGuard implements CanActivate {
       if (user) {
         req.user = user;
       }
-    } else if (userIdHeader) {
-      const uid = parseInt(Array.isArray(userIdHeader) ? userIdHeader[0] : userIdHeader, 10);
-      if (!isNaN(uid)) {
-        const user = await this.authService.getUserById(uid);
-        if (user) {
-          req.user = user;
-        }
-      }
+    }
+
+    const isPublic = this.reflector.getAllAndOverride<boolean>(PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (!req.user && !isPublic) {
+      throw new UnauthorizedException('Please sign in to continue.');
     }
 
     return true;
   }
 }
-

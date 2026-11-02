@@ -11,6 +11,7 @@ import { LedgerService } from '../ledger/ledger.service';
 import { StockMovementService } from '../stock/stock-movement.service';
 import {
   CreateSaleDto,
+  LedgerLine,
   Sale,
   SaleItem,
   User,
@@ -46,6 +47,10 @@ export class PosService {
     if (!dto.payment_account_id) {
       throw new BadRequestException('Payment account is required for counter sales.');
     }
+    const variationIds = dto.items.map((i) => i.product_variation_id);
+    if (new Set(variationIds).size !== variationIds.length) {
+      throw new BadRequestException('Each size can appear only once in a sale. Add to its quantity instead.');
+    }
 
     // Rule 6: Idempotent retry check via client_ref
     if (dto.client_ref) {
@@ -70,7 +75,7 @@ export class PosService {
 
     // 2. Fetch payment account
     const accRes = await this.pool.query(
-      'SELECT id, code, name, type, location_id, is_active FROM accounts WHERE id = $1',
+      'SELECT id, code, name, type, location_id, is_active, payment_method FROM accounts WHERE id = $1',
       [dto.payment_account_id]
     );
     if (accRes.rows.length === 0) {
@@ -88,8 +93,12 @@ export class PosService {
       );
     }
 
+    if (!payAccount.payment_method) {
+      throw new BadRequestException(`Account '${payAccount.code}' cannot take payments.`);
+    }
+
     // 3. Rule 2: Server calculates all prices and permissions
-    const varIds = dto.items.map((i) => i.product_variation_id);
+    const varIds = variationIds;
     const varRes = await this.pool.query(
       `SELECT 
         pv.id AS variation_id,
@@ -97,11 +106,11 @@ export class PosService {
         pv.sku,
         p.id AS product_id,
         p.name AS product_name,
-        p.cost_price,
-        p.selling_price
+        pv.cost_price,
+        pv.selling_price
       FROM product_variations pv
       JOIN products p ON pv.product_id = p.id
-      WHERE pv.id = ANY($1) AND p.is_active = true`,
+      WHERE pv.id = ANY($1) AND p.is_active = true AND pv.is_active = true`,
       [varIds]
     );
 
@@ -110,7 +119,10 @@ export class PosService {
       varMap.set(v.variation_id, v);
     }
 
-    let calculatedSubtotal = 0;
+    // Money is added up in whole paisa so totals cannot drift.
+    let subtotalPaisa = 0;
+    let listTotalPaisa = 0;
+    let reductionPaisa = 0;
     let totalCost = 0;
     const computedItems: {
       variation_id: number;
@@ -157,9 +169,22 @@ export class PosService {
 
       const unitCost = Number(v.cost_price);
       const discount = Number(item.discount || 0);
-      const lineTotal = Math.max(0, unitPrice * item.quantity - discount);
+      if (!Number.isFinite(unitPrice) || unitPrice < 0 || !Number.isFinite(discount) || discount < 0) {
+        throw new BadRequestException(`Invalid price or discount for item '${v.product_name}'.`);
+      }
 
-      calculatedSubtotal += lineTotal;
+      const grossPaisa = Math.round(unitPrice * 100) * item.quantity;
+      const discountPaisa = Math.round(discount * 100);
+      if (discountPaisa > grossPaisa) {
+        throw new BadRequestException(`Discount on '${v.product_name}' is more than the line amount.`);
+      }
+      const netPaisa = grossPaisa - discountPaisa;
+      const listPaisa = Math.round(catalogPrice * 100) * item.quantity;
+      const lineTotal = netPaisa / 100;
+
+      subtotalPaisa += netPaisa;
+      listTotalPaisa += listPaisa;
+      reductionPaisa += Math.max(0, listPaisa - netPaisa);
       totalCost += unitCost * item.quantity;
 
       computedItems.push({
@@ -176,14 +201,40 @@ export class PosService {
     }
 
     const cartDiscount = Number(dto.discount_amount || 0);
-    const finalTotal = Math.max(0, calculatedSubtotal - cartDiscount);
+    if (!Number.isFinite(cartDiscount) || cartDiscount < 0) {
+      throw new BadRequestException('Invalid discount amount.');
+    }
+    const cartDiscountPaisa = Math.round(cartDiscount * 100);
+    if (cartDiscountPaisa > subtotalPaisa) {
+      throw new BadRequestException('Discount cannot be more than the subtotal.');
+    }
+    reductionPaisa += cartDiscountPaisa;
+
+    // Rule 2: every reduction stays within the user's discount limit. Admins have no limit.
+    if (user.role !== 'admin' && reductionPaisa > 0) {
+      const limitBasisPoints = Math.round(Number(user.discount_limit_percent || 0) * 100);
+      if (reductionPaisa * 10000 > listTotalPaisa * limitBasisPoints) {
+        throw new ForbiddenException(
+          `A discount of ৳${(reductionPaisa / 100).toFixed(2)} is over your limit of ${user.discount_limit_percent || 0}%.`
+        );
+      }
+    }
+
+    const calculatedSubtotal = subtotalPaisa / 100;
+    const finalTotal = (subtotalPaisa - cartDiscountPaisa) / 100;
+    const roundedCost = Math.round(totalCost * 100) / 100;
 
     // Counter sale rule: full payment required at counter (no credit sales per Section 2)
     const paidAmount = finalTotal;
 
+    let committedId: number;
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
+
+      // Rule 7: Hold the shop row so two sales cannot take the same number.
+      // NO KEY keeps inserts that reference this shop from blocking on it.
+      await client.query('SELECT id FROM locations WHERE id = $1 FOR NO KEY UPDATE', [shopId]);
 
       // Rule 7: Generate short sequential receipt number per shop
       const countRes = await client.query(
@@ -194,7 +245,9 @@ export class PosService {
       const invoiceNumber = `${shop.code}-${String(nextSeq).padStart(6, '0')}`;
 
       // Rule 4: Stock moves through movement service (cannot oversell for counter sale)
-      for (const item of computedItems) {
+      // Locks stock rows in a fixed order so two carts cannot deadlock.
+      const itemsByVariation = [...computedItems].sort((a, b) => a.variation_id - b.variation_id);
+      for (const item of itemsByVariation) {
         await this.stockMovementService.recordMovement(
           {
             product_variation_id: item.variation_id,
@@ -214,44 +267,57 @@ export class PosService {
       // Rule 3: Single posting function writes balanced entries
       // 1. Revenue entry: Dr Shop Cash, Cr SALES_REVENUE
       // 2. COGS entry: Dr COGS, Cr INVENTORY (at cost)
-      const ledgerRes = await this.ledgerService.postEntry(
-        {
-          shop_id: shopId,
-          entry_type: 'sale',
-          source_type: 'sale',
-          source_id: invoiceNumber,
-          client_ref: dto.client_ref,
-          notes: `POS Sale ${invoiceNumber}`,
-          lines: [
-            {
-              account_code: payAccount.code,
-              direction: 'debit',
-              amount: finalTotal,
-              notes: `Counter cash collection ${invoiceNumber}`,
-            },
-            {
-              account_code: 'SALES_REVENUE',
-              direction: 'credit',
-              amount: finalTotal,
-              notes: `Sales revenue ${invoiceNumber}`,
-            },
-            {
-              account_code: 'COGS',
-              direction: 'debit',
-              amount: totalCost,
-              notes: `COGS recognition ${invoiceNumber}`,
-            },
-            {
-              account_code: 'INVENTORY',
-              direction: 'credit',
-              amount: totalCost,
-              notes: `Inventory reduction at cost ${invoiceNumber}`,
-            },
-          ],
-        },
-        user.id,
-        client
-      );
+      // A free sale has no revenue lines and a zero-cost product has no COGS lines.
+      const ledgerLines: LedgerLine[] = [];
+      if (finalTotal > 0) {
+        ledgerLines.push(
+          {
+            account_code: payAccount.code,
+            direction: 'debit',
+            amount: finalTotal,
+            notes: `Counter cash collection ${invoiceNumber}`,
+          },
+          {
+            account_code: 'SALES_REVENUE',
+            direction: 'credit',
+            amount: finalTotal,
+            notes: `Sales revenue ${invoiceNumber}`,
+          }
+        );
+      }
+      if (roundedCost > 0) {
+        ledgerLines.push(
+          {
+            account_code: 'COGS',
+            direction: 'debit',
+            amount: roundedCost,
+            notes: `COGS recognition ${invoiceNumber}`,
+          },
+          {
+            account_code: 'INVENTORY',
+            direction: 'credit',
+            amount: roundedCost,
+            notes: `Inventory reduction at cost ${invoiceNumber}`,
+          }
+        );
+      }
+
+      const ledgerRes =
+        ledgerLines.length > 0
+          ? await this.ledgerService.postEntry(
+              {
+                shop_id: shopId,
+                entry_type: 'sale',
+                source_type: 'sale',
+                source_id: invoiceNumber,
+                client_ref: dto.client_ref,
+                notes: `POS Sale ${invoiceNumber}`,
+                lines: ledgerLines,
+              },
+              user.id,
+              client
+            )
+          : null;
 
       // Insert sale record
       const saleRes = await client.query(
@@ -282,7 +348,7 @@ export class PosService {
           finalTotal,
           paidAmount,
           payAccount.id,
-          ledgerRes.entry_id,
+          ledgerRes?.entry_id ?? null,
           user.id,
         ]
       );
@@ -313,14 +379,16 @@ export class PosService {
       }
 
       await client.query('COMMIT');
-
-      return await this.getSaleById(saleId);
+      committedId = saleId;
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
     } finally {
       client.release();
     }
+
+    // Read back after releasing the connection, so waiting sales cannot exhaust the pool.
+    return this.getSaleById(committedId);
   }
 
   async listSales(shopId?: number): Promise<Sale[]> {

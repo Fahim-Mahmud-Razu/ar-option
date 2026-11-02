@@ -15,7 +15,18 @@ export type PermissionKey =
   | 'courier.manage'
   | 'courier.settle'
   | 'pos.edit_price'
-  | 'cash.reconcile';
+  | 'pos.sell'
+  | 'cash.reconcile'
+  | 'expenses.create'
+  | 'products.manage'
+  | 'products.import'
+  | 'ledger.post'
+  | 'till.view'
+  | 'till.open'
+  | 'till.setup'
+  | 'till.cash_in'
+  | 'till.cash_out'
+  | 'till.close';
 
 export interface Shop {
   id: number;
@@ -32,10 +43,12 @@ export interface User {
   email: string;
   role: string;
   is_active: boolean;
+  discount_limit_percent?: number;
   assigned_shops?: Shop[];
 }
 
 export type AccountType = 'asset' | 'liability' | 'equity' | 'revenue' | 'expense';
+export type PaymentMethod = 'cash' | 'card' | 'bkash' | 'nagad' | 'rocket' | 'bank';
 
 export interface Account {
   id: number;
@@ -44,6 +57,7 @@ export interface Account {
   type: AccountType;
   location_id?: number | null;
   is_active: boolean;
+  payment_method?: PaymentMethod | null;
 }
 
 export type LedgerDirection = 'debit' | 'credit';
@@ -82,6 +96,11 @@ export interface CreateUserDto {
   password: string;
   role: 'admin' | 'manager' | 'cashier' | 'staff';
   shop_ids?: number[];
+  discount_limit_percent?: number;
+}
+
+export interface SetupStatus {
+  needs_setup: boolean;
 }
 
 export interface TrialBalanceItem {
@@ -99,14 +118,33 @@ export interface ProductVariation {
   product_id: number;
   size: string;
   sku: string;
+  cost_price: number;
+  selling_price: number;
+}
+
+export interface Category {
+  id: number;
+  name: string;
+  parent_id: number | null;
+}
+
+export interface Brand {
+  id: number;
+  name: string;
 }
 
 export interface Product {
   id: number;
   name: string;
   code: string;
+  category_id?: number | null;
+  sub_category_id?: number | null;
+  brand_id?: number | null;
   category_name?: string;
   brand_name?: string;
+  unit?: string;
+  alert_quantity?: number;
+  /** Price of the first size, kept for older screens. Each size has its own. */
   cost_price: number;
   selling_price: number;
   is_active: boolean;
@@ -286,21 +324,49 @@ export interface CreateSaleDto {
   items: CreateSaleItemDto[];
 }
 
-export interface BulkImportProductDto {
-  name: string;
-  code: string;
-  category_name?: string;
-  brand_name?: string;
-  cost_price: number;
-  selling_price: number;
-  sizes?: string[];
-  initial_stock?: {
-    shop_code: string;
-    size: string;
-    quantity: number;
-  }[];
+export type ImportRowAction = 'new_product' | 'new_size' | 'update' | 'unchanged' | 'error';
+
+export interface ImportRowResult {
+  row: number;
+  action: ImportRowAction;
+  message: string;
+  product_name: string;
+  size: string;
+  sku: string;
+  category: string;
+  selling_price: string;
+  add_stock: number;
+  shop: string;
 }
 
+export interface ImportTotals {
+  total_rows: number;
+  new_products: number;
+  new_sizes: number;
+  updated: number;
+  unchanged: number;
+  stock_added: number;
+  errors: number;
+}
+
+export interface ImportPreview {
+  rows: ImportRowResult[];
+  totals: ImportTotals;
+}
+
+export interface ImportCommitResult {
+  batch_no: string;
+  totals: ImportTotals;
+}
+
+export interface ImportRequest {
+  rows: Record<string, string>[];
+  file_name?: string;
+  /** The shop in the top bar, used when a row has no Shop. */
+  active_shop_id?: number | null;
+  /** Makes a retried commit return the first result. */
+  client_ref?: string;
+}
 
 // ==========================================
 // Step 4: Return & Exchange Types
@@ -495,21 +561,108 @@ export interface DailyCashClosing {
   created_at: string;
 }
 
-export interface CreateCashClosingDto {
-  location_id: number;
-  physical_counted_cash: number;
-  discrepancy_reason?: string;
-  notes?: string;
+export type TillMovementKind = 'pay_in' | 'pay_out' | 'owner_pull';
+
+export interface TillMovement {
+  id: number;
+  session_id: number;
+  kind: TillMovementKind;
+  amount: number;
+  category_id?: number | null;
+  category_name?: string | null;
+  note?: string | null;
+  created_by?: number | null;
+  user_name?: string | null;
+  created_at: string;
 }
 
-export interface CashDrawerSummary {
+/** Every figure is worked out by the server from the ledger. */
+export interface TillSummary {
+  current_cash: number;
+  opening_float: number;
+  cash_sales: number;
+  digital_sales: number;
+  pay_ins: number;
+  petty_cash: number;
+  refunds: number;
+  other_cash: number;
+}
+
+export interface TillSession {
+  id: number;
+  location_id: number;
+  status: 'open' | 'closed';
+  opened_by?: number | null;
+  opened_by_name?: string | null;
+  opened_at: string;
+  opening_float: number;
+  open_adjustment: number;
+  open_reason?: string | null;
+  open_note?: string | null;
+  closed_by?: number | null;
+  closed_at?: string | null;
+  expected_cash?: number | null;
+  counted_cash?: number | null;
+  difference?: number | null;
+  difference_reason?: string | null;
+  handover_amount?: number | null;
+  retained_amount?: number | null;
+  close_note?: string | null;
+}
+
+export interface TillStatus {
   shop_id: number;
   shop_name: string;
   shop_code: string;
-  cash_account_code: string;
-  opening_cash: number;
+  /** Ledger balance of the shop's cash account. */
+  ledger_cash: number;
+  session: TillSession | null;
+  summary: TillSummary | null;
+  movements: TillMovement[];
+  /** True when the shop has never had a session, so the first open needs till.setup. */
+  is_first_open: boolean;
+}
+
+export interface OpenTillDto {
+  opening_float: number;
+  note?: string;
+  /** Required when the float differs from the cash the books expect, except on the first open. */
+  reason?: string;
+  client_ref: string;
+}
+
+export interface TillMovementDto {
+  kind: TillMovementKind;
+  amount: number;
+  /** Required for pay_out. */
+  category_id?: number;
+  note?: string;
+  client_ref: string;
+}
+
+export interface CloseTillDto {
+  counted_cash: number;
+  /** Required when the count differs from the ledger balance. */
+  difference_reason?: string;
+  /** Cash the owner takes out at close. The rest stays in the till. */
+  handover_amount?: number;
+  note?: string;
+  client_ref: string;
+}
+
+export interface TillOverviewRow {
+  shop_id: number;
+  shop_name: string;
+  shop_code: string;
+  is_open: boolean;
+  session_id: number | null;
+  cash_in_hand: number;
+  opening_float: number;
   cash_sales: number;
-  cash_expenses: number;
-  cash_returns: number;
-  system_expected_cash: number;
+  petty_cash: number;
+}
+
+export interface TillOverview {
+  shops: TillOverviewRow[];
+  total_cash: number;
 }

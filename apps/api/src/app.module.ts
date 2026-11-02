@@ -11,6 +11,7 @@ import { PosModule } from './pos/pos.module';
 import { ReturnsModule } from './returns/returns.module';
 import { CourierModule } from './courier/courier.module';
 import { CashClosingModule } from './cash-closing/cash-closing.module';
+import { TillModule } from './till/till.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { CashClosingModule } from './cash-closing/cash-closing.module';
     ReturnsModule,
     CourierModule,
     CashClosingModule,
+    TillModule,
   ],
   controllers: [HealthController],
 })

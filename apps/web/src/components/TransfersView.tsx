@@ -17,6 +17,7 @@ import type {
   CreateTransferDto,
   ReceiveTransferDto,
 } from '@ar-option/shared-types';
+import { apiFetch } from '../lib/api';
 
 interface TransfersViewProps {
   activeShop: Shop | null;
@@ -57,7 +58,7 @@ export const TransfersView: React.FC<TransfersViewProps> = ({
       ? `${apiUrl}/transfers?status=${tab}&shop_id=${activeShop.id}`
       : `${apiUrl}/transfers?status=${tab}`;
 
-    fetch(url)
+    apiFetch(url)
       .then((res) => {
         if (!res.ok) throw new Error('Failed to load stock transfers');
         return res.json();
@@ -78,7 +79,7 @@ export const TransfersView: React.FC<TransfersViewProps> = ({
 
   // Fetch stock by shop for send modal
   const loadProductsForSend = () => {
-    fetch(`${apiUrl}/reports/stock-by-shop`)
+    apiFetch(`${apiUrl}/reports/stock-by-shop`)
       .then((res) => (res.ok ? res.json() : []))
       .then((data: StockByShopGridItem[]) => {
         setProducts(data);
@@ -120,7 +121,7 @@ export const TransfersView: React.FC<TransfersViewProps> = ({
         items: [{ product_variation_id: varId, qty_sent: qty }],
       };
 
-      const res = await fetch(`${apiUrl}/transfers`, {
+      const res = await apiFetch(`${apiUrl}/transfers`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -181,7 +182,7 @@ export const TransfersView: React.FC<TransfersViewProps> = ({
         })),
       };
 
-      const res = await fetch(`${apiUrl}/transfers/${receivingTransfer.id}/receive`, {
+      const res = await apiFetch(`${apiUrl}/transfers/${receivingTransfer.id}/receive`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -57,6 +57,8 @@ describe('Step 4 & 5: Returns & Exchanges, Courier & Settlement (e2e)', () => {
     stockMovementService = app.get<StockMovementService>(StockMovementService);
 
     // Clean test tables
+    await pool.query('DELETE FROM till_movements');
+    await pool.query('DELETE FROM till_sessions');
     await pool.query('DELETE FROM daily_cash_closings');
     await pool.query('DELETE FROM courier_parcel_items');
     await pool.query('DELETE FROM courier_parcels');
@@ -72,6 +74,8 @@ describe('Step 4 & 5: Returns & Exchanges, Courier & Settlement (e2e)', () => {
     await pool.query('DELETE FROM stock');
     await pool.query('DELETE FROM product_variations');
     await pool.query('DELETE FROM products');
+    await pool.query('DELETE FROM categories');
+    await pool.query('DELETE FROM brands');
     await pool.query('DELETE FROM account_transactions');
     await pool.query('DELETE FROM user_locations');
     await pool.query('DELETE FROM users');
@@ -94,17 +98,17 @@ describe('Step 4 & 5: Returns & Exchanges, Courier & Settlement (e2e)', () => {
 
     // 3. Create Cash and Bank accounts for the shop
     const cashRes = await pool.query(
-      `INSERT INTO accounts (code, name, type, location_id)
-       VALUES ('CASH_BAN-01', 'Cash - Banani Flagship', 'asset', $1)
+      `INSERT INTO accounts (code, name, type, location_id, payment_method)
+       VALUES ('CASH_BAN-01', 'Cash - Banani Flagship', 'asset', $1, 'cash')
        RETURNING id`,
       [testShopId]
     );
     cashAccountId = cashRes.rows[0].id;
 
     const bankRes = await pool.query(
-      `INSERT INTO accounts (code, name, type, location_id)
-       VALUES ('BANK_BRAC', 'BRAC Bank Corporate', 'asset', null)
-       ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+      `INSERT INTO accounts (code, name, type, location_id, payment_method)
+       VALUES ('BANK_BRAC', 'BRAC Bank Corporate', 'asset', null, 'bank')
+       ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, payment_method = 'bank'
        RETURNING id`
     );
     bankAccountId = bankRes.rows[0].id;
@@ -155,16 +159,16 @@ describe('Step 4 & 5: Returns & Exchanges, Courier & Settlement (e2e)', () => {
     const prodId = prodRes.rows[0].id;
 
     const var1Res = await pool.query(
-      `INSERT INTO product_variations (product_id, size, sku)
-       VALUES ($1, 'M', 'SHIRT-LINEN-M')
+      `INSERT INTO product_variations (product_id, size, sku, cost_price, selling_price)
+       VALUES ($1, 'M', 'SHIRT-LINEN-M', 600.00, 1400.00)
        RETURNING id`,
       [prodId]
     );
     testVariation1Id = var1Res.rows[0].id;
 
     const var2Res = await pool.query(
-      `INSERT INTO product_variations (product_id, size, sku)
-       VALUES ($1, 'L', 'SHIRT-LINEN-L')
+      `INSERT INTO product_variations (product_id, size, sku, cost_price, selling_price)
+       VALUES ($1, 'L', 'SHIRT-LINEN-L', 600.00, 1400.00)
        RETURNING id`,
       [prodId]
     );
@@ -463,7 +467,7 @@ describe('Step 4 & 5: Returns & Exchanges, Courier & Settlement (e2e)', () => {
       expect(courierStock).toBe(2);
 
       // Verify trial balance is balanced (Dr Bank 300 / Cr Customer Advances 300)
-      const tbRes = await app.inject({ method: 'GET', url: '/ledger/trial-balance' });
+      const tbRes = await app.inject({ method: 'GET', url: '/ledger/trial-balance', headers: { authorization: `Bearer ${adminToken}` } });
       const tb = JSON.parse(tbRes.payload);
       expect(tb.isBalanced).toBe(true);
     });
@@ -494,7 +498,7 @@ describe('Step 4 & 5: Returns & Exchanges, Courier & Settlement (e2e)', () => {
       // Trial Balance must remain strictly balanced
       // Dr Courier Receivable 2,600, Dr Customer Advances 300, Cr Sales Revenue 2,900
       // Dr COGS 1,200, Cr Inventory 1,200
-      const tbRes = await app.inject({ method: 'GET', url: '/ledger/trial-balance' });
+      const tbRes = await app.inject({ method: 'GET', url: '/ledger/trial-balance', headers: { authorization: `Bearer ${adminToken}` } });
       const tb = JSON.parse(tbRes.payload);
       expect(tb.isBalanced).toBe(true);
     });
@@ -553,7 +557,7 @@ describe('Step 4 & 5: Returns & Exchanges, Courier & Settlement (e2e)', () => {
       expect(updatedParcel.settlement_id).toBe(settlement.id);
 
       // Trial Balance remains balanced: Dr Bank 2520, Dr Courier Charges 80, Cr Courier Receivable 2600
-      const tbRes = await app.inject({ method: 'GET', url: '/ledger/trial-balance' });
+      const tbRes = await app.inject({ method: 'GET', url: '/ledger/trial-balance', headers: { authorization: `Bearer ${adminToken}` } });
       const tb = JSON.parse(tbRes.payload);
       expect(tb.isBalanced).toBe(true);
 

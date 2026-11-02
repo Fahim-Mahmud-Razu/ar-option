@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Store, Plus, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import type { Shop } from '@ar-option/shared-types';
+import { apiFetch } from '../lib/api';
 
 interface ShopsViewProps {
   shops: Shop[];
@@ -32,7 +33,7 @@ export const ShopsView: React.FC<ShopsViewProps> = ({
 
     setSubmitting(true);
     try {
-      const res = await fetch(`${apiUrl}/shops`, {
+      const res = await apiFetch(`${apiUrl}/shops`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim(), code: code.trim().toUpperCase() }),

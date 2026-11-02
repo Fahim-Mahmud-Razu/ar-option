@@ -468,6 +468,7 @@ Large value, label below, optional trend.
 - **Tablet:** three or four columns.
 - **Desktop:** up to six columns.
 - Colour the number only for due or danger figures.
+- The **Cash in Hand** card is wider than a standard KPI card. It shows the figure, a Till Open or Till Closed badge, and the split Opening Float, Cash Sales and Petty Cash.
 
 ### Filter Bar
 
@@ -511,6 +512,7 @@ A sheet is a panel that slides up from the bottom of the screen.
 - **Confirmations:** a small centred dialog on all sizes. Delete and post actions state exactly what will change.
 - Background scrolling is locked with `overscroll-behavior: contain`.
 - Focus moves into the sheet and returns to its trigger on close.
+- Sheets and inner screens such as Add Product and Import share one history stack. The Android back gesture and Esc close the top layer first, and a reload returns to the same screen.
 
 ### Forms
 
@@ -527,15 +529,49 @@ The one screen allowed to leave the standard shell. Staff work with a customer w
 | Size | Layout |
 |---|---|
 | Phone | Full-screen product search and grid in two columns. A sticky bar shows item count, total and Checkout. The cart opens as a full-screen sheet. Bottom tabs are hidden during a sale |
-| Tablet | Cart panel 320px wide on the left, products on the right in two or three columns |
-| Laptop | Cart panel 360px wide on the left, products in three or four columns |
-| Desktop | Cart panel 400px wide on the left, products in four or more columns, full keyboard control |
+| Tablet (744px to 1023px) | Cart list panel about 340px wide on the left. Each line is a compact card, and price and discount edit in place. Size cards on the right in two columns |
+| Laptop (1024px to 1279px) | Cart table on the left, about 7/12 of the width, with the columns Product, Qty, Price, Disc and Total. Size cards on the right in two columns |
+| Desktop (1280px and wider) | The same cart table, about 7/12 of the width. Size cards in three or more columns, full keyboard control |
+| Phone in landscape (`short:`) | The phone layout |
 
 - With no barcode scanner, search by product code or name is the fastest route and takes focus on tablet and wider.
 - On phones, search does not take focus automatically, so the keyboard does not hide the grid.
-- Choosing a product with sizes opens the Size Picker.
+- On phones, choosing a product with sizes opens the Size Picker. On tablet and wider, every size is its own card, so one tap adds one item.
+- Every width has a Back control. At 1024px and wider the navigation collapses to the rail while POS is open.
 - Payment buttons are at least 48px tall.
 - A **Courier sale** switch at checkout reveals customer, phone, address, courier, delivery charge and advance fields.
+
+### POS Cart and Product Cards
+
+- **Cart header:** customer search by mobile, name or ID, with a Walk-in button and Add Customer. Under it, one box labelled "Enter SKU" for a typed or scanned code. There is no barcode feature, because Barcode Studio is out of scope. A scanner that types keys into the box still works.
+- **Matching an entered code:** exact size SKU first, then exact product code, then name. Several matches open the Size Picker.
+- **Cart lines:** product name and size, a quantity stepper, an editable Price, an editable Disc in taka, and the line total. Price edits need `pos.edit_price`. Any reduction must stay within the user's discount limit, and the server decides.
+- **Below the lines:** Discount (% or taka), then Items and Subtotal, then the **Grand Payable Total** card. The total is a Display figure and is always on screen.
+- **Product cards:** one card per size. Each shows the product name, size badge, SKU, price and a stock badge for the active shop: "Stock: N" or "Out of stock". Category and brand chips filter the grid. Out-of-stock cards stay visible but cannot be added.
+- **Long catalogs:** the card grid is virtualised, as in Performance on low-cost phones.
+- **The cart is kept** per shop on the device. It survives a tab change, a reload and a rotation. Changing shop while the cart holds items asks for confirmation.
+
+### POS Payment Actions
+
+- **Action grid:** Suspend, Cancel, then payment buttons for Cash, Card, bKash and MultiPay. Cash is primary and shows the total. Every button is at least 48px tall.
+- **Payment methods come from the shop's configured payment accounts.** A method with no account for the shop is disabled and says why.
+- **Cancel** asks for confirmation and clears the cart, the discount and the customer.
+- **bKash** takes an optional transaction ID and an optional sender mobile, checked against `01[3-9]` and 8 digits.
+- **MultiPay** is a dialog. It shows Payable Total and Total Tendered, then one row per method with an amount and an optional reference. Add Method fills the remaining amount. The box "Cash Tendered & Change" has Customer Gave and Change to Return. Complete is disabled until the payments add up to the payable total to the paisa. Change is a display figure only and never becomes a ledger line.
+- **Hotkeys on keyboard devices:** F2 focuses the search or SKU box, F4 opens MultiPay, F8 suspends the cart, F9 focuses Discount, and Esc closes the top dialog. A hotkey list is reachable from the POS strip.
+
+### Suspended Carts
+
+A suspended cart is parked on this device only. It is never saved on the server and has no stock or money effect, which is why it is not a Draft Cart. The POS strip shows a Suspended button with a count. Resume restores the cart and its customer, and Discard asks for confirmation. A suspended cart can be lost if the browser clears its storage, and the list says so.
+
+### Till
+
+- **Till chip** in the POS strip: "Till ৳12,480" with the shop's open session, or "Open Till" when none is open. Selling is not blocked when the till is closed, but the chip is highlighted and the POS offers to open it.
+- **Open Till** asks for the float and an optional note. After the first session, the field is pre-filled with the cash the books expect. A different amount needs a reason.
+- **Till Status dialog:** Current Cash in Drawer, then Opening Float, Cash Sales, Digital / Card, Pay-Ins, Petty Cash, Refunds and Other Cash, so the figures always add up. Then three actions: Cash In, Cash Out and Close & Handover.
+- **Cash In and Cash Out** take an amount, a category and a note. Phone: a bottom sheet.
+- **Close & Handover** has a denomination count (1000, 500, 200, 100, 50, 20, 10, 5, 2, 1), the counted total, the difference with the expected cash, a required reason when they differ, Cash Collected by Owner, Retained in Till, and closing notes. Phone: full screen with a sticky Finish bar.
+- **Dashboard:** a Cash in Hand card shows the open session's figure and an Open POS Till button. With All shops selected, it lists one row per shop and a total.
 
 ### Size Picker
 
@@ -584,6 +620,28 @@ New for AR Option.
 - **Phone:** the Receive screen lists items with steppers, and shortages require a reason.
 - **Tablet and wider:** a table with the same fields.
 
+### Product Form
+
+One page for adding and editing a product, reached from Products. It has three groups, so it stays one scrolling column with a sticky Save bar on phones.
+
+- **General:** name, SKU, unit, category, sub-category, brand and low-stock alert. The SKU is Auto (the next 6-digit code) or Custom, with a live "Available" or "Already used by" check. A saved SKU cannot be changed.
+- **Category and brand** can be created from the form without leaving it.
+- **Pricing and sizes:** each size has a SKU, cost, margin % and selling price. Selling price is cost x (1 + margin / 100). Editing the selling price recalculates the margin. A "Copy first row to all" action fills the other rows. Size chips are presets, and a custom size can be added.
+- **Stock by shop:** opening stock per size for each shop the user may use. Stock of a saved size is changed in Stock, not here.
+- **Phone:** each size is a card. **Tablet and wider:** a table, up to 960px wide. This is an exception to the 720px form width.
+- **Money** uses `inputmode="decimal"` and shows the saved figure in full.
+
+### Import Products
+
+A page of its own, reached from Products, with a Back control.
+
+- **File:** drag and drop, or Browse, for CSV (UTF-8) or XLSX. Download template and Export my products sit in the header.
+- **Columns:** Product Name, Size, SKU, Category, Brand, Cost Price, Selling Price, Add Stock, Sub Category, Alert Qty and Shop. One row per size. A blank cell keeps the current value. Add Stock adds to current stock. A blank Shop means the active shop.
+- **Preview:** summary tiles for New Products, New Sizes, Updated, +Stock and Errors. Tapping a tile filters the rows. Rows can also be searched. Each row shows its action and a message.
+- **Phone:** rows become cards. **Tablet and wider:** a table that scrolls inside its card.
+- **Limits:** up to 2,000 rows a file. A CSV must be UTF-8, and `.xls` is refused. Rows can be told apart by SKU, or by product name when no SKU is given.
+- **Import is disabled while any row has an error.** Commit is all or nothing. Success shows the counts and the Stock In document number, with Import Another File and View in Stock.
+
 ### Charts
 
 - Use the brand palette, never chart library defaults.
@@ -597,6 +655,12 @@ New for AR Option.
 - **Rail:** 64px wide, icons with tooltips where hover exists. Tapping opens the 288px drawer.
 - **Sidebar:** 256px wide with grouped sections, collapsible to 64px.
 - The section order is Dashboard, User Management, Contacts, Products, Purchases, Sell/POS, Courier, Expenses, Payment Accounts, Financial Statements, Reports, Settings.
+
+### Login
+
+- A centred card on every size, with a 48px Sign In button. Inputs follow the 16px Input Rule.
+- On a fresh deployment with no users, the same card creates the first admin.
+- When a session expires, the login appears over the open screen so the cart or form underneath is kept.
 
 ### Empty, Loading and Error States
 

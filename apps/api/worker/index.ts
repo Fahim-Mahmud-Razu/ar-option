@@ -11,6 +11,7 @@ interface Env {
   API_CONTAINER: any;
   DATABASE_URL?: string;
   CORS_ORIGIN?: string;
+  JWT_SECRET?: string;
 }
 
 export default {
@@ -23,6 +24,7 @@ export default {
         DATABASE_URL: env.DATABASE_URL,
         PORT: '3000',
         CORS_ORIGIN: env.CORS_ORIGIN || '',
+        JWT_SECRET: env.JWT_SECRET || '',
       };
     }
 

@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common';
 import { ExpensesService } from './expenses.service';
 import { ShopGuard } from '../shops/shop.guard';
+import { PermissionsGuard } from '../auth/permissions.guard';
+import { RequirePermission } from '../auth/require-permission.decorator';
 import { CreateExpenseDto, Expense, ExpenseCategory } from '@ar-option/shared-types';
 
 @Controller('expenses')
@@ -31,7 +33,8 @@ export class ExpensesController {
   }
 
   @Post()
-  @UseGuards(ShopGuard)
+  @UseGuards(ShopGuard, PermissionsGuard)
+  @RequirePermission('expenses.create')
   async createExpense(
     @Body() body: CreateExpenseDto,
     @Req() req: any

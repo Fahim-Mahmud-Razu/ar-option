@@ -32,22 +32,32 @@ export class ShopsService {
       throw new BadRequestException('Shop name and code are required.');
     }
     const cleanCode = code.trim().toUpperCase();
-    const result = await this.pool.query(
-      'INSERT INTO locations (name, code, is_system, is_active) VALUES ($1, $2, false, true) RETURNING id, name, code, is_active, is_system',
-      [name.trim(), cleanCode]
-    );
-    const shop = result.rows[0];
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    // Configure default shop cash account (Rule 1 & Rule 3: shop-owned cash account)
-    const accountCode = `CASH_${cleanCode.replace(/[^A-Z0-9]/g, '_')}`;
-    await this.pool.query(
-      `INSERT INTO accounts (code, name, type, location_id, is_active)
-       VALUES ($1, $2, 'asset', $3, true)
-       ON CONFLICT (code) DO NOTHING`,
-      [accountCode, `${shop.name} Cash`, shop.id]
-    );
+      const result = await client.query(
+        'INSERT INTO locations (name, code, is_system, is_active) VALUES ($1, $2, false, true) RETURNING id, name, code, is_active, is_system',
+        [name.trim(), cleanCode]
+      );
+      const shop = result.rows[0];
 
-    return shop;
+      // Configure default shop cash account (Rule 1 & Rule 3: shop-owned cash account)
+      const accountCode = `CASH_${cleanCode.replace(/[^A-Z0-9]/g, '_')}`;
+      await client.query(
+        `INSERT INTO accounts (code, name, type, location_id, is_active, payment_method)
+         VALUES ($1, $2, 'asset', $3, true, 'cash')`,
+        [accountCode, `${shop.name} Cash`, shop.id]
+      );
+
+      await client.query('COMMIT');
+      return shop;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   async updateShop(

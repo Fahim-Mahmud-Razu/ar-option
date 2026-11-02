@@ -62,6 +62,8 @@ describe('Multi-Shop, Transfers & Stock Movement (e2e)', () => {
     await pool.query('DELETE FROM courier_settlements');
     await pool.query('DELETE FROM return_items');
     await pool.query('DELETE FROM returns');
+    await pool.query('DELETE FROM till_movements');
+    await pool.query('DELETE FROM till_sessions');
     await pool.query('DELETE FROM daily_cash_closings');
     await pool.query('DELETE FROM courier_parcel_items');
     await pool.query('DELETE FROM courier_parcels');
@@ -77,6 +79,8 @@ describe('Multi-Shop, Transfers & Stock Movement (e2e)', () => {
     await pool.query('DELETE FROM stock');
     await pool.query('DELETE FROM product_variations');
     await pool.query('DELETE FROM products');
+    await pool.query('DELETE FROM categories');
+    await pool.query('DELETE FROM brands');
     await pool.query('DELETE FROM account_transactions');
     await pool.query('DELETE FROM user_locations');
     await pool.query('DELETE FROM users');
@@ -180,6 +184,7 @@ describe('Multi-Shop, Transfers & Stock Movement (e2e)', () => {
     const prodRes = await app.inject({
       method: 'POST',
       url: '/products',
+        headers: { authorization: `Bearer ${adminToken}` },
       payload: {
         name: 'Premium Silk Panjabi',
         code: 'PAN-SILK-01',
@@ -200,6 +205,7 @@ describe('Multi-Shop, Transfers & Stock Movement (e2e)', () => {
     const stockInit = await app.inject({
       method: 'POST',
       url: '/products/initial-stock',
+        headers: { authorization: `Bearer ${adminToken}` },
       payload: {
         variation_id: size40VariationId,
         location_id: gulshanShopId,
@@ -317,11 +323,12 @@ describe('Multi-Shop, Transfers & Stock Movement (e2e)', () => {
       expect(dCheck.stockQty).toBe(0);
 
       // Section 5.3: Transfers have NO effect on ledger
-      const tbRes = await app.inject({ method: 'GET', url: '/ledger/trial-balance' });
+      const tbRes = await app.inject({ method: 'GET', url: '/ledger/trial-balance', headers: { authorization: `Bearer ${adminToken}` } });
       expect(tbRes.statusCode).toBe(200);
       const tb = JSON.parse(tbRes.payload);
-      expect(tb.totalDebit).toBe(0);
-      expect(tb.totalCredit).toBe(0);
+      // Only the opening stock (50 units at cost 1,500) is in the ledger. The transfer added nothing.
+      expect(tb.totalDebit).toBe(75000);
+      expect(tb.totalCredit).toBe(75000);
     });
 
     describe('Two-Step Transfers: Step 2 (Received)', () => {
@@ -336,7 +343,7 @@ describe('Multi-Shop, Transfers & Stock Movement (e2e)', () => {
           payload: {
             items: [
               {
-                item_id: (await app.inject({ method: 'GET', url: `/transfers/${transferId}` }).then(r => JSON.parse(r.payload))).items[0].id,
+                item_id: (await app.inject({ method: 'GET', url: `/transfers/${transferId}`, headers: { authorization: `Bearer ${adminToken}` } }).then(r => JSON.parse(r.payload))).items[0].id,
                 qty_received: 20,
               },
             ],
@@ -349,7 +356,7 @@ describe('Multi-Shop, Transfers & Stock Movement (e2e)', () => {
       });
 
       it('rejects shortage without an explanation reason (Section 5.3)', async () => {
-        const transfer = JSON.parse((await app.inject({ method: 'GET', url: `/transfers/${transferId}` })).payload);
+        const transfer = JSON.parse((await app.inject({ method: 'GET', url: `/transfers/${transferId}`, headers: { authorization: `Bearer ${adminToken}` } })).payload);
         const itemId = transfer.items[0].id;
 
         const response = await app.inject({
@@ -375,7 +382,7 @@ describe('Multi-Shop, Transfers & Stock Movement (e2e)', () => {
       });
 
       it('successfully receives transfer with shortage reason and updates all stock balances', async () => {
-        const transfer = JSON.parse((await app.inject({ method: 'GET', url: `/transfers/${transferId}` })).payload);
+        const transfer = JSON.parse((await app.inject({ method: 'GET', url: `/transfers/${transferId}`, headers: { authorization: `Bearer ${adminToken}` } })).payload);
         const itemId = transfer.items[0].id;
 
         const response = await app.inject({
@@ -436,6 +443,7 @@ describe('Multi-Shop, Transfers & Stock Movement (e2e)', () => {
       const gKpiRes = await app.inject({
         method: 'GET',
         url: `/reports/dashboard-kpis?shop_id=${gulshanShopId}`,
+        headers: { authorization: `Bearer ${adminToken}` },
       });
       expect(gKpiRes.statusCode).toBe(200);
       const gKpi = JSON.parse(gKpiRes.payload);
@@ -445,6 +453,7 @@ describe('Multi-Shop, Transfers & Stock Movement (e2e)', () => {
       const dKpiRes = await app.inject({
         method: 'GET',
         url: `/reports/dashboard-kpis?shop_id=${dhanmondiShopId}`,
+        headers: { authorization: `Bearer ${adminToken}` },
       });
       expect(dKpiRes.statusCode).toBe(200);
       const dKpi = JSON.parse(dKpiRes.payload);
@@ -454,6 +463,7 @@ describe('Multi-Shop, Transfers & Stock Movement (e2e)', () => {
       const allKpiRes = await app.inject({
         method: 'GET',
         url: `/reports/dashboard-kpis`,
+        headers: { authorization: `Bearer ${adminToken}` },
       });
       expect(allKpiRes.statusCode).toBe(200);
       const allKpi = JSON.parse(allKpiRes.payload);
@@ -465,6 +475,7 @@ describe('Multi-Shop, Transfers & Stock Movement (e2e)', () => {
       const gridRes = await app.inject({
         method: 'GET',
         url: '/reports/stock-by-shop',
+        headers: { authorization: `Bearer ${adminToken}` },
       });
       expect(gridRes.statusCode).toBe(200);
       const grid = JSON.parse(gridRes.payload);

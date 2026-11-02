@@ -49,6 +49,8 @@ The product must always be able to answer these four questions correctly:
 - Draft Carts and Sales Quotations
 - Credit sales at the counter
 
+A suspended cart (see Terms) is not a Draft Cart. It lives on one device only, has no route and no API, and has no stock or money effect.
+
 ---
 
 ## 3. Terms
@@ -65,6 +67,12 @@ Use these words in the UI, in code comments and in tests.
 | Settlement | A payment from a courier that covers one or more parcels. |
 | Manual return | A return with no linked sale. |
 | Entry | A balanced set of ledger lines for one business event. |
+| Suspended cart | A cart parked on one device. It is never saved on the server, so it is not a Draft Cart. |
+| Till | The cash drawer of one shop. Its balance is the ledger balance of the shop's cash account. |
+| Till session | One open-to-close period of a till. A shop has at most one open session. |
+| Float | The cash put in a till at the start of a session. |
+| Payment account | An asset account that takes money: a shop's cash account, or a bank, card or mobile money account. |
+| MultiPay | One counter sale paid with more than one payment. |
 
 ---
 
@@ -113,6 +121,8 @@ Use these words in the UI, in code comments and in tests.
 - Every API route declares a permission key, and one guard checks it. Hiding a button is not security.
 - `admin` is a superuser. Every other role uses the editable `role_permissions` data.
 - Required new keys: `shops.manage`, `transfers.send`, `transfers.receive`, `returns.create`, `returns.manual`, `returns.approve`, `courier.view`, `courier.manage`, `courier.settle`.
+- Keys already in use: `pos.edit_price`, `cash.reconcile`.
+- Keys planned for the POS, catalog and till work: `pos.sell`, `expenses.create`, `contacts.view`, `contacts.manage`, `products.view`, `products.manage`, `products.import`, `payment_accounts.manage`, `ledger.post`, `till.view`, `till.open`, `till.setup`, `till.cash_in`, `till.cash_out`, `till.close`.
 
 ### Rule 6: Every write is safe to retry
 
@@ -214,6 +224,17 @@ Manual entry comes first. Courier API integrations are a later phase.
 
 ---
 
+### 5.5 Payments, Till and Catalog (decided 2 November 2026, not yet built)
+
+- A counter sale takes one or more payments. They must add up to the server's total to the paisa. Change is never a ledger line.
+- Every payment uses a payment account that the shop may use. Card and mobile money accounts are configured data and are never seeded.
+- Expected till cash is always the ledger balance of the shop's cash account. No second source exists.
+- The first till open posts the difference between the float and the ledger balance to `OWNER_EQUITY` and needs `till.setup`. Later opens pre-fill the ledger balance. A different count needs a reason and posts to `TILL_OVER_SHORT`.
+- Pay-in debits cash and credits `OWNER_EQUITY`. Pay-out goes through the expense path as one entry. An owner pull or the close handover debits `OWNER_DRAWINGS` and credits cash. At close, any difference is posted so the ledger equals the count. Each entry has its own `client_ref`.
+- Selling is not blocked when the till is closed. If the client wants a block, it applies to cash payments only and sits behind a setting.
+- Price overrides need `pos.edit_price`. Every reduction (override, line discount and cart discount) must stay within the user's discount limit. Admins have no limit.
+- Prices and costs belong to the size, not the product. Opening stock posts Dr `INVENTORY`, Cr `OWNER_EQUITY` in the same transaction as the stock movement. A cost change on a size that holds stock posts a revaluation to `INVENTORY_ADJUSTMENT`.
+
 ## 6. Fast Hisab Code Traps
 
 Do not carry these patterns forward.
@@ -241,16 +262,16 @@ Do not carry these patterns forward.
 
 These have not been confirmed by the client. Before building a feature that depends on one, check that it has been confirmed, and update this table with the answer.
 
-| # | Assumption | Affects |
-|---|---|---|
-| 1 | Stock is tracked by size | Products, POS, transfers, returns |
-| 2 | "Condition courier" means the courier collects the price and sends it to the shop | Courier module |
-| 3 | The rules for delivery charges, return charges and advances still need defining | Courier ledger entries |
-| 4 | Couriers may settle many parcels in one payment | Settlement screen |
-| 5 | Each shop keeps its own cash. Bank and bKash accounts may be shared | Payment accounts |
-| 6 | Purchases, Contacts, Payment Accounts and Dashboard are kept, although the client's list did not name them | Scope |
-| 7 | A return at another shop is allowed. Stock and the refund belong to the receiving shop | Return & Exchange |
-| 8 | Thermal receipts are wanted | Printing |
+| # | Assumption | Affects | Status |
+|---|---|---|---|
+| 1 | Stock is tracked by size | Products, POS, transfers, returns | Confirmed by the user, 2 November 2026 |
+| 2 | "Condition courier" means the courier collects the price and sends it to the shop | Courier module | Unconfirmed |
+| 3 | The rules for delivery charges, return charges and advances still need defining | Courier ledger entries | Unconfirmed |
+| 4 | Couriers may settle many parcels in one payment | Settlement screen | Unconfirmed |
+| 5 | Each shop keeps its own cash. Bank and bKash accounts may be shared | Payment accounts | Confirmed by the user, 2 November 2026 |
+| 6 | Purchases, Contacts, Payment Accounts and Dashboard are kept, although the client's list did not name them | Scope | Contacts confirmed, 2 November 2026. The rest is unconfirmed |
+| 7 | A return at another shop is allowed. Stock and the refund belong to the receiving shop | Return & Exchange | Unconfirmed |
+| 8 | Thermal receipts are wanted | Printing | Unconfirmed |
 
 ---
 
