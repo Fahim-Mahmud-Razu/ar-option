@@ -57,6 +57,17 @@ describe('Multi-Shop, Transfers & Stock Movement (e2e)', () => {
     stockMovementService = app.get<StockMovementService>(StockMovementService);
 
     // Clean test tables
+    await pool.query('DELETE FROM courier_parcel_items');
+    await pool.query('DELETE FROM courier_parcels');
+    await pool.query('DELETE FROM courier_settlements');
+    await pool.query('DELETE FROM return_items');
+    await pool.query('DELETE FROM returns');
+    await pool.query('DELETE FROM daily_cash_closings');
+    await pool.query('DELETE FROM courier_parcel_items');
+    await pool.query('DELETE FROM courier_parcels');
+    await pool.query('DELETE FROM courier_settlements');
+    await pool.query('DELETE FROM return_items');
+    await pool.query('DELETE FROM returns');
     await pool.query('DELETE FROM sale_items');
     await pool.query('DELETE FROM sales');
     await pool.query('DELETE FROM expenses');

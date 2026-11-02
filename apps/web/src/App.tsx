@@ -7,6 +7,13 @@ import {
   CheckCircle2,
   AlertCircle,
   RefreshCw,
+  ShoppingCart,
+  RotateCcw,
+  Truck,
+  Banknote,
+  Package,
+  DollarSign,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { TopBar } from './components/TopBar';
 import { BottomTabs } from './components/BottomTabs';
@@ -17,6 +24,9 @@ import { StockGridView } from './components/StockGridView';
 import { UsersView } from './components/UsersView';
 import { PosView } from './components/PosView';
 import { ExpensesView } from './components/ExpensesView';
+import { ReturnsView } from './components/ReturnsView';
+import { CourierView } from './components/CourierView';
+import { DailyCashClosingView } from './components/DailyCashClosingView';
 import type {
   HealthResponse,
   Shop,
@@ -312,6 +322,42 @@ export const App: React.FC = () => {
 
             {/* Tab 1: POS is handled above */}
 
+            {/* Tab: Return & Exchange (Step 4) */}
+            {activeTab === 'returns' && (
+              <ReturnsView
+                activeShop={activeShop}
+                apiUrl={apiUrl}
+                onReturnCompleted={() => {
+                  fetchTrialBalance(activeShop?.id);
+                  fetchDashboardKpis(activeShop?.id);
+                }}
+              />
+            )}
+
+            {/* Tab: Courier & Settlement (Step 5) */}
+            {activeTab === 'courier' && (
+              <CourierView
+                activeShop={activeShop}
+                apiUrl={apiUrl}
+                onSettlementCompleted={() => {
+                  fetchTrialBalance(activeShop?.id);
+                  fetchDashboardKpis(activeShop?.id);
+                }}
+              />
+            )}
+
+            {/* Tab: Daily Cash Closing (Step 6 Go-Live) */}
+            {activeTab === 'cash-closing' && (
+              <DailyCashClosingView
+                activeShop={activeShop}
+                apiUrl={apiUrl}
+                onClosingCompleted={() => {
+                  fetchTrialBalance(activeShop?.id);
+                  fetchDashboardKpis(activeShop?.id);
+                }}
+              />
+            )}
+
             {/* Tab 2: Products & Stock Grid */}
             {activeTab === 'products' && (
               <StockGridView apiUrl={apiUrl} activeShop={activeShop} />
@@ -387,6 +433,83 @@ export const App: React.FC = () => {
                   >
                     {trialBalance?.isBalanced !== false ? 'Balanced' : 'Unbalanced'}
                   </div>
+                </div>
+              </div>
+
+              {/* Quick Actions Grid for Fast Navigation on all devices */}
+              <div className="bg-light-surface dark:bg-dark-surface p-4 rounded-2xl border border-light-border dark:border-dark-border shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-xs uppercase tracking-wider text-light-text-muted dark:text-dark-text-muted">
+                    Daily Operations Quick Launch
+                  </h3>
+                  <span className="text-[10px] text-primary dark:text-primary-tint font-bold">
+                    Active: {activeShop?.name || 'All Shops'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+                  <button
+                    type="button"
+                    data-testid="quick-nav-pos"
+                    onClick={() => setActiveTab('pos')}
+                    className="p-3 rounded-xl border border-light-border dark:border-dark-border bg-light-surface-hover dark:bg-dark-surface-hover hover:border-primary flex flex-col items-center justify-center space-y-1 transition-all"
+                  >
+                    <ShoppingCart className="w-5 h-5 text-primary dark:text-primary-tint" />
+                    <span className="text-xs font-bold">Sell / POS</span>
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="quick-nav-returns"
+                    onClick={() => setActiveTab('returns')}
+                    className="p-3 rounded-xl border border-light-border dark:border-dark-border bg-light-surface-hover dark:bg-dark-surface-hover hover:border-primary flex flex-col items-center justify-center space-y-1 transition-all"
+                  >
+                    <RotateCcw className="w-5 h-5 text-primary dark:text-primary-tint" />
+                    <span className="text-xs font-bold">Return/Swap</span>
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="quick-nav-courier"
+                    onClick={() => setActiveTab('courier')}
+                    className="p-3 rounded-xl border border-light-border dark:border-dark-border bg-light-surface-hover dark:bg-dark-surface-hover hover:border-primary flex flex-col items-center justify-center space-y-1 transition-all"
+                  >
+                    <Truck className="w-5 h-5 text-primary dark:text-primary-tint" />
+                    <span className="text-xs font-bold">Courier</span>
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="quick-nav-cash-closing"
+                    onClick={() => setActiveTab('cash-closing')}
+                    className="p-3 rounded-xl border border-light-border dark:border-dark-border bg-light-surface-hover dark:bg-dark-surface-hover hover:border-primary flex flex-col items-center justify-center space-y-1 transition-all"
+                  >
+                    <Banknote className="w-5 h-5 text-primary dark:text-primary-tint" />
+                    <span className="text-xs font-bold">Cash Closing</span>
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="quick-nav-products"
+                    onClick={() => setActiveTab('products')}
+                    className="p-3 rounded-xl border border-light-border dark:border-dark-border bg-light-surface-hover dark:bg-dark-surface-hover hover:border-primary flex flex-col items-center justify-center space-y-1 transition-all"
+                  >
+                    <Package className="w-5 h-5 text-primary dark:text-primary-tint" />
+                    <span className="text-xs font-bold">Stock Grid</span>
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="quick-nav-expenses"
+                    onClick={() => setActiveTab('expenses')}
+                    className="p-3 rounded-xl border border-light-border dark:border-dark-border bg-light-surface-hover dark:bg-dark-surface-hover hover:border-primary flex flex-col items-center justify-center space-y-1 transition-all"
+                  >
+                    <DollarSign className="w-5 h-5 text-primary dark:text-primary-tint" />
+                    <span className="text-xs font-bold">Expenses</span>
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="quick-nav-transfers"
+                    onClick={() => setActiveTab('transfers')}
+                    className="p-3 rounded-xl border border-light-border dark:border-dark-border bg-light-surface-hover dark:bg-dark-surface-hover hover:border-primary flex flex-col items-center justify-center space-y-1 transition-all"
+                  >
+                    <ArrowLeftRight className="w-5 h-5 text-primary dark:text-primary-tint" />
+                    <span className="text-xs font-bold">Transfers</span>
+                  </button>
                 </div>
               </div>
 

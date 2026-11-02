@@ -8,6 +8,9 @@ import { StockModule } from './stock/stock.module';
 import { ReportsModule } from './reports/reports.module';
 import { ExpensesModule } from './expenses/expenses.module';
 import { PosModule } from './pos/pos.module';
+import { ReturnsModule } from './returns/returns.module';
+import { CourierModule } from './courier/courier.module';
+import { CashClosingModule } from './cash-closing/cash-closing.module';
 
 @Module({
   imports: [
@@ -19,6 +22,9 @@ import { PosModule } from './pos/pos.module';
     ReportsModule,
     ExpensesModule,
     PosModule,
+    ReturnsModule,
+    CourierModule,
+    CashClosingModule,
   ],
   controllers: [HealthController],
 })

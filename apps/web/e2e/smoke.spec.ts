@@ -18,7 +18,7 @@ test.describe('App Shell Smoke Test', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ status: 'ok', migration: 4 }),
+        body: JSON.stringify({ status: 'ok', migration: 5 }),
       });
     });
     await page.route('**/shops', async (route) => {
@@ -77,6 +77,57 @@ test.describe('App Shell Smoke Test', () => {
         body: JSON.stringify([]),
       });
     });
+    await page.route('**/returns*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    });
+    await page.route('**/courier/summary*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          money_with_couriers: 4500,
+          delivered_unpaid_count: 2,
+          out_now_count: 3,
+          returned_count: 1,
+        }),
+      });
+    });
+    await page.route('**/courier/parcels*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            id: 1,
+            parcel_code: 'PAR-GUL-000001',
+            location_id: 1,
+            customer_name: 'Sadman Sakib',
+            customer_phone: '01711223344',
+            customer_address: 'House 5, Road 2, Gulshan, Dhaka',
+            courier_name: 'Steadfast',
+            tracking_number: 'ST-10029',
+            order_value: 2000,
+            advance_amount: 300,
+            collectible_amount: 1700,
+            delivery_charge: 100,
+            delivery_status: 'delivered',
+            payment_status: 'unpaid',
+            created_at: new Date().toISOString(),
+          },
+        ]),
+      });
+    });
+    await page.route('**/courier/settlements*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    });
     await page.route('**/ledger/accounts*', async (route) => {
       await route.fulfill({
         status: 200,
@@ -86,17 +137,39 @@ test.describe('App Shell Smoke Test', () => {
         ]),
       });
     });
+    await page.route('**/cash-closing/drawer-summary*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          shop_id: 1,
+          shop_name: 'Gulshan Branch',
+          shop_code: 'GUL-01',
+          cash_account_code: 'CASH_GUL-01',
+          opening_cash: 5000,
+          cash_sales: 12500,
+          cash_expenses: 1200,
+          cash_returns: 800,
+          system_expected_cash: 15500,
+        }),
+      });
+    });
+    await page.route('**/cash-closing*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    });
   });
 
   test('loads page and verifies header, API status and migration number', async ({ page }) => {
     await page.goto('/');
 
-    // Check title and branding
     await expect(page).toHaveTitle(/AR Option/);
     const title = page.locator('h1');
     await expect(title).toHaveText('AR Option');
 
-    // Check presence of API status and migration indicators
     const apiStatus = page.locator('[data-testid="api-status"]');
     await expect(apiStatus).toBeVisible();
 
@@ -109,29 +182,36 @@ test.describe('App Shell Smoke Test', () => {
   test('navigates to POS terminal and verifies search-first catalog and cart', async ({ page }) => {
     await page.goto('/');
 
-    // Click visible POS nav button (handles mobile bottom tabs, tablet rail, or desktop sidebar)
     const posNav = page.locator('[data-testid$="-pos"]:visible').first();
     await posNav.click();
 
-    // Verify Point of Sale screen is active
     await expect(page.locator('text=Point of Sale')).toBeVisible();
-
-    // Verify search input is present
     const searchInput = page.locator('input[placeholder*="Search by product name"]');
     await expect(searchInput).toBeVisible();
-
-    // Verify catalog item appears from mocked stock-by-shop
     await expect(page.locator('text=Classic Polo Shirt')).toBeVisible();
   });
 
-  test('navigates to Daily Expenses screen and verifies record button', async ({ page }) => {
+  test('navigates to Return & Exchange screen and verifies 3-step net calculation', async ({ page }) => {
     await page.goto('/');
 
-    const expensesNav = page.locator('[data-testid$="-expenses"]:visible').first();
-    await expensesNav.click();
+    const returnsNav = page.locator('[data-testid$="-returns"]:visible').first();
+    await returnsNav.click();
 
-    await expect(page.locator('text=Shop Daily Expenses')).toBeVisible();
-    await expect(page.locator('button:has-text("Record New Expense")')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Return & Exchange' })).toBeVisible();
+    await expect(page.locator(':visible:has-text("Net Amount")').first()).toBeVisible();
+  });
+
+  test('navigates to Courier & Settlement screen and verifies Two Tracks Rule badges', async ({ page }) => {
+    await page.goto('/');
+
+    const courierNav = page.locator('[data-testid$="-courier"]:visible').first();
+    await courierNav.click();
+
+    await expect(page.getByRole('heading', { name: 'Courier & Settlement' })).toBeVisible();
+    await expect(page.locator('text=Money with Couriers')).toBeVisible();
+    await expect(page.locator(':visible:has-text("PAR-GUL-000001")').first()).toBeVisible();
+    await expect(page.locator(':visible:has-text("delivered")').first()).toBeVisible();
+    await expect(page.locator(':visible:has-text("unpaid")').first()).toBeVisible();
   });
 
   test('navigates to Products & Stock and toggles between Grid and Bulk Import', async ({ page }) => {
@@ -144,9 +224,20 @@ test.describe('App Shell Smoke Test', () => {
     await expect(page.locator('button:has-text("Stock Grid")')).toBeVisible();
     await expect(page.locator('button:has-text("Bulk Import")')).toBeVisible();
 
-    // Switch to Bulk Import
     await page.click('button:has-text("Bulk Import")');
     await expect(page.locator('text=Bulk Product Import')).toBeVisible();
     await expect(page.locator('button:has-text("Load Sample Apparel Data")')).toBeVisible();
+  });
+
+  test('navigates to Daily Cash Closing screen and verifies drawer reconciliation', async ({ page }) => {
+    await page.goto('/');
+
+    const cashNav = page.locator('[data-testid$="-cash-closing"]:visible').first();
+    await cashNav.click();
+
+    await expect(page.getByRole('heading', { name: 'Daily Cash Closing' })).toBeVisible();
+    await expect(page.locator('text=Physical Drawer Cash Count')).toBeVisible();
+    await expect(page.locator(':visible:has-text("System Expected")').first()).toBeVisible();
+    await expect(page.locator(':visible:has-text("৳15500.00")').first()).toBeVisible();
   });
 });

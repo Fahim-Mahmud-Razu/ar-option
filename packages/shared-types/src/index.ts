@@ -14,7 +14,8 @@ export type PermissionKey =
   | 'courier.view'
   | 'courier.manage'
   | 'courier.settle'
-  | 'pos.edit_price';
+  | 'pos.edit_price'
+  | 'cash.reconcile';
 
 export interface Shop {
   id: number;
@@ -298,4 +299,217 @@ export interface BulkImportProductDto {
     size: string;
     quantity: number;
   }[];
+}
+
+
+// ==========================================
+// Step 4: Return & Exchange Types
+// ==========================================
+
+export type ReturnDirection = 'in' | 'out';
+export type ReturnCondition = 'resaleable' | 'damaged' | 'unlisted' | 'exchange_out';
+export type ReturnActionType = 'customer_paid' | 'refunded' | 'even' | 'store_credit';
+
+export interface ReturnItem {
+  id: number;
+  return_id: number;
+  direction: ReturnDirection;
+  product_variation_id?: number | null;
+  product_name?: string;
+  size?: string;
+  sku?: string;
+  unlisted_title?: string;
+  quantity: number;
+  unit_cost: number;
+  unit_price: number;
+  condition: ReturnCondition;
+  total: number;
+}
+
+export interface ReturnRecord {
+  id: number;
+  return_number: string;
+  location_id: number;
+  shop_name: string;
+  shop_code: string;
+  sale_id?: number | null;
+  sale_invoice_number?: string | null;
+  is_manual: boolean;
+  customer_name?: string;
+  customer_phone?: string;
+  reason: string;
+  notes?: string;
+  inbound_subtotal: number;
+  outbound_subtotal: number;
+  net_amount: number;
+  action_type: ReturnActionType;
+  payment_account_id?: number | null;
+  payment_account_name?: string | null;
+  is_approved: boolean;
+  approved_by?: number | null;
+  entry_id?: string | null;
+  created_by?: number;
+  created_at: string;
+  items?: ReturnItem[];
+}
+
+export interface CreateReturnItemDto {
+  direction: ReturnDirection;
+  product_variation_id?: number;
+  unlisted_title?: string;
+  quantity: number;
+  unit_price?: number;
+  condition: ReturnCondition;
+}
+
+export interface CreateReturnDto {
+  sale_id?: number;
+  is_manual?: boolean;
+  customer_name?: string;
+  customer_phone?: string;
+  reason: string;
+  notes?: string;
+  payment_account_id?: number;
+  action_type: ReturnActionType;
+  items: CreateReturnItemDto[];
+}
+
+// ==========================================
+// Step 5: Courier & Settlement Types
+// ==========================================
+
+export type CourierDeliveryStatus = 'booked' | 'in_transit' | 'delivered' | 'partly_delivered' | 'returned' | 'lost';
+export type CourierPaymentStatus = 'unpaid' | 'partial' | 'paid';
+
+export interface CourierParcelItem {
+  id: number;
+  parcel_id: number;
+  product_variation_id: number;
+  product_name: string;
+  size: string;
+  sku: string;
+  quantity: number;
+  unit_price: number;
+  unit_cost: number;
+  total: number;
+  status: 'pending' | 'delivered' | 'returned';
+}
+
+export interface CourierParcel {
+  id: number;
+  parcel_code: string;
+  location_id: number;
+  shop_name: string;
+  shop_code: string;
+  sale_id?: number | null;
+  customer_name: string;
+  customer_phone: string;
+  customer_address: string;
+  courier_name: string;
+  tracking_number?: string;
+  order_value: number;
+  advance_amount: number;
+  collectible_amount: number;
+  delivery_charge: number;
+  delivery_status: CourierDeliveryStatus;
+  payment_status: CourierPaymentStatus;
+  advance_account_id?: number | null;
+  advance_account_name?: string | null;
+  settlement_id?: number | null;
+  booking_entry_id?: string | null;
+  delivery_entry_id?: string | null;
+  notes?: string;
+  delivered_at?: string;
+  settled_at?: string;
+  created_by?: number;
+  created_at: string;
+  items?: CourierParcelItem[];
+}
+
+export interface BookCourierParcelDto {
+  customer_name: string;
+  customer_phone: string;
+  customer_address: string;
+  courier_name: string;
+  tracking_number?: string;
+  advance_amount?: number;
+  advance_account_id?: number;
+  delivery_charge?: number;
+  notes?: string;
+  items: { product_variation_id: number; quantity: number }[];
+}
+
+export interface UpdateParcelDeliveryDto {
+  delivery_status: CourierDeliveryStatus;
+  delivered_items?: { item_id: number; status: 'delivered' | 'returned' }[];
+  notes?: string;
+}
+
+export interface CourierSettlement {
+  id: number;
+  settlement_ref: string;
+  location_id?: number | null;
+  courier_name: string;
+  parcel_count: number;
+  total_receivable: number;
+  amount_received: number;
+  charges_deducted: number;
+  discrepancy_amount: number;
+  discrepancy_reason?: string;
+  payment_account_id: number;
+  payment_account_name?: string;
+  entry_id?: string | null;
+  created_by?: number;
+  created_at: string;
+  parcels?: CourierParcel[];
+}
+
+export interface CreateSettlementDto {
+  courier_name: string;
+  parcel_ids: number[];
+  amount_received: number;
+  charges_deducted: number;
+  discrepancy_reason?: string;
+  payment_account_id: number;
+  notes?: string;
+}
+
+// Step 6: Go-Live & Daily Cash Drawer Reconciliation Types
+export interface DailyCashClosing {
+  id: number;
+  location_id: number;
+  location_name?: string;
+  location_code?: string;
+  user_id: number;
+  user_name?: string;
+  closing_date: string;
+  opening_cash: number;
+  cash_sales: number;
+  cash_expenses: number;
+  cash_returns: number;
+  system_expected_cash: number;
+  physical_counted_cash: number;
+  discrepancy_amount: number;
+  discrepancy_reason?: string;
+  notes?: string;
+  created_at: string;
+}
+
+export interface CreateCashClosingDto {
+  location_id: number;
+  physical_counted_cash: number;
+  discrepancy_reason?: string;
+  notes?: string;
+}
+
+export interface CashDrawerSummary {
+  shop_id: number;
+  shop_name: string;
+  shop_code: string;
+  cash_account_code: string;
+  opening_cash: number;
+  cash_sales: number;
+  cash_expenses: number;
+  cash_returns: number;
+  system_expected_cash: number;
 }

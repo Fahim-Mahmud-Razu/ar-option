@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, ShoppingCart, Layers, DollarSign, ArrowLeftRight } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, RotateCcw, Truck, Layers } from 'lucide-react';
 
 interface BottomTabsProps {
   activeTab: string;
@@ -15,9 +15,9 @@ export const BottomTabs: React.FC<BottomTabsProps> = ({ activeTab, onSelectTab }
   const tabs = [
     { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
     { id: 'pos', label: 'POS', icon: ShoppingCart },
+    { id: 'returns', label: 'Return', icon: RotateCcw },
+    { id: 'courier', label: 'Courier', icon: Truck },
     { id: 'products', label: 'Stock', icon: Layers },
-    { id: 'expenses', label: 'Expenses', icon: DollarSign },
-    { id: 'transfers', label: 'Transfers', icon: ArrowLeftRight },
   ];
 
   return (

@@ -23,6 +23,18 @@ export class StockMovementService {
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
   /**
+   * Retrieves current quantity available for a variation at a location.
+   */
+  async getStock(variationId: number, locationId: number): Promise<number> {
+    const res = await this.pool.query(
+      'SELECT qty_available FROM stock WHERE product_variation_id = $1 AND location_id = $2',
+      [variationId, locationId]
+    );
+    if (res.rows.length === 0) return 0;
+    return Number(res.rows[0].qty_available);
+  }
+
+  /**
    * Rule 4: Every stock change goes through the stock movement service.
    * No direct update of qty_available.
    * Decrements source location (with oversell check) and increments destination location.
