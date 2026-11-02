@@ -103,10 +103,19 @@ for (const width of [320, 360]) {
       data: { email: 'owner@aroption.com', password: 'owner-password' },
     });
     const { token } = await login.json();
+    const shopsRes = await request.get(`${API}/shops`, { headers: { authorization: `Bearer ${token}` } });
+    const shops = await shopsRes.json();
+    const shop = shops[0];
 
     const context = await browser.newContext({ viewport: { width, height: 640 }, hasTouch: true });
     const page = await context.newPage();
-    await page.addInitScript((t) => localStorage.setItem('ar_option_token', t), token);
+    await page.addInitScript(
+      ({ t, s }) => {
+        localStorage.setItem('ar_option_token', t);
+        if (s) localStorage.setItem('ar_option_shop', String(s));
+      },
+      { t: token, s: shop?.id }
+    );
     await page.goto('/');
 
     // Navigate to Till via Quick Launch or Cash in Hand card
