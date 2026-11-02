@@ -319,6 +319,40 @@ test.describe('App Shell Smoke Test', () => {
     await expect(page.locator(':visible:has-text("unpaid")').first()).toBeVisible();
   });
 
+  test('opens searchable product catalog popup in Book Courier Parcel modal and adds product', async ({ page }) => {
+    await page.goto('/');
+
+    const courierNav = page.locator('[data-testid$="-courier"]:visible').first();
+    await courierNav.click();
+
+    await expect(page.getByRole('heading', { name: 'Courier & Settlement' })).toBeVisible();
+
+    // Click "+ Book Parcel" button
+    await page.getByRole('button', { name: 'Book Parcel' }).click();
+    await expect(page.getByRole('heading', { name: 'Book Courier Parcel' })).toBeVisible();
+
+    // Click "+ Add Product from Catalog" button
+    await page.getByRole('button', { name: '+ Add Product from Catalog' }).click();
+
+    // Verify Searchable Product Catalog Pop Up opens (Image 2)
+    await expect(page.getByRole('heading', { name: 'Select Product from Catalog' })).toBeVisible();
+    const searchInput = page.getByPlaceholder('Search catalog products...');
+    await expect(searchInput).toBeVisible();
+
+    // Verify product info matches catalog
+    await expect(page.locator('text=Classic Polo Shirt').first()).toBeVisible();
+    await expect(page.locator('text=POLO-01-L').first()).toBeVisible();
+    await expect(page.locator('text=15 in shop').first()).toBeVisible();
+
+    // Click the item
+    await page.locator('text=POLO-01-L').click();
+
+    // Catalog modal closes and item is added under Parcel Items
+    await expect(page.getByRole('heading', { name: 'Select Product from Catalog' })).toHaveCount(0);
+    await expect(page.locator('text=Classic Polo Shirt').first()).toBeVisible();
+    await expect(page.locator('text=POLO-01-L').first()).toBeVisible();
+  });
+
   test('navigates to Products & Stock and opens the Import page', async ({ page }) => {
     await page.goto('/');
 

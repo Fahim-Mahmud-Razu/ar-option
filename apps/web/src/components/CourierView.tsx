@@ -11,6 +11,7 @@ import {
   X,
   FileCheck2,
   History,
+  ChevronDown,
 } from 'lucide-react';
 import type {
   Shop,
@@ -70,6 +71,8 @@ export const CourierView: React.FC<CourierViewProps> = ({
     quantity: number;
     selling_price: number;
   }[]>([]);
+  const [showCatalogModal, setShowCatalogModal] = useState<boolean>(false);
+  const [catalogSearch, setCatalogSearch] = useState<string>('');
 
   // Delivery status update modal
   const [updatingParcel, setUpdatingParcel] = useState<CourierParcel | null>(null);
@@ -211,6 +214,47 @@ export const CourierView: React.FC<CourierViewProps> = ({
   const accountedTotal = numAmountReceived + numChargesDeducted;
   const settlementDiscrepancy = Math.round((expectedSettlementTotal - accountedTotal) * 100) / 100;
   const hasDiscrepancy = Math.abs(settlementDiscrepancy) > 0.01;
+
+  // Filter catalog products for searchable pop up
+  const filteredCatalogItems = useMemo(() => {
+    const q = catalogSearch.toLowerCase().trim();
+    if (!q) return stockGrid;
+    return stockGrid.filter((item) => {
+      return (
+        item.product_name?.toLowerCase().includes(q) ||
+        item.product_code?.toLowerCase().includes(q) ||
+        item.sku?.toLowerCase().includes(q) ||
+        item.size?.toLowerCase().includes(q) ||
+        item.category_name?.toLowerCase().includes(q) ||
+        item.brand_name?.toLowerCase().includes(q)
+      );
+    });
+  }, [stockGrid, catalogSearch]);
+
+  const handleSelectCatalogProduct = (item: StockByShopGridItem) => {
+    const existingIndex = bookedItems.findIndex((bi) => bi.variation_id === item.variation_id);
+    if (existingIndex >= 0) {
+      setBookedItems((prev) =>
+        prev.map((bi, i) =>
+          i === existingIndex ? { ...bi, quantity: bi.quantity + 1 } : bi
+        )
+      );
+    } else {
+      setBookedItems((prev) => [
+        ...prev,
+        {
+          variation_id: item.variation_id,
+          product_name: item.product_name,
+          size: item.size,
+          sku: item.sku,
+          quantity: 1,
+          selling_price: item.selling_price,
+        },
+      ]);
+    }
+    setShowCatalogModal(false);
+    setCatalogSearch('');
+  };
 
   // Book Parcel Submission
   const handleBookParcel = async (e: React.FormEvent) => {
@@ -1120,58 +1164,54 @@ export const CourierView: React.FC<CourierViewProps> = ({
               {/* Items Picker */}
               <div className="space-y-2 pt-2 border-t border-light-border dark:border-dark-border">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold">Parcel Items</span>
-                  <select
-                    onChange={(e) => {
-                      const vId = parseInt(e.target.value, 10);
-                      if (!vId) return;
-                      const item = stockGrid.find((sg) => sg.variation_id === vId);
-                      if (item) {
-                        setBookedItems((prev) => [
-                          ...prev,
-                          {
-                            variation_id: item.variation_id,
-                            product_name: item.product_name,
-                            size: item.size,
-                            sku: item.sku,
-                            quantity: 1,
-                            selling_price: item.selling_price,
-                          },
-                        ]);
-                      }
-                      e.target.value = '';
+                  <span className="text-xs font-bold text-light-text dark:text-dark-text">Parcel Items</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCatalogSearch('');
+                      if (stockGrid.length === 0) fetchStockGrid();
+                      setShowCatalogModal(true);
                     }}
-                    className="h-8 px-2 rounded-lg text-xs bg-primary/10 text-primary border border-primary/20 font-bold"
+                    className="h-8 px-2.5 rounded-lg text-xs bg-primary/10 text-primary dark:text-primary-tint border border-primary/20 font-bold hover:bg-primary/20 flex items-center space-x-1.5 transition-colors cursor-pointer"
                   >
-                    <option value="">+ Add Product from Catalog</option>
-                    {stockGrid.map((sg) => (
-                      <option key={sg.variation_id} value={sg.variation_id}>
-                        {sg.product_name} [{sg.size}] - ৳{sg.selling_price}
-                      </option>
-                    ))}
-                  </select>
+                    <span>+ Add Product from Catalog</span>
+                    <ChevronDown className="w-3.5 h-3.5 opacity-70" />
+                  </button>
                 </div>
 
-                {bookedItems.map((bi, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between p-2 rounded-lg bg-light-surface-hover dark:bg-dark-surface-hover text-xs"
-                  >
-                    <div>
-                      <span className="font-bold">{bi.product_name}</span> [{bi.size}]
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <span className="font-mono">৳{bi.selling_price}</span>
-                      <button
-                        type="button"
-                        onClick={() => setBookedItems((prev) => prev.filter((_, i) => i !== idx))}
-                        className="text-danger p-1"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                {bookedItems.length === 0 ? (
+                  <div className="p-3 rounded-xl border border-dashed border-light-border dark:border-dark-border text-center text-xs text-light-text-muted dark:text-dark-text-muted">
+                    No items added yet. Tap "+ Add Product from Catalog" above.
                   </div>
-                ))}
+                ) : (
+                  bookedItems.map((bi, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-light-surface-hover dark:bg-dark-surface-hover border border-light-border dark:border-dark-border text-xs"
+                    >
+                      <div>
+                        <span className="font-bold text-light-text dark:text-dark-text">{bi.product_name}</span>{' '}
+                        <span className="font-mono text-rose-500 dark:text-rose-400 font-bold">[{bi.size}]</span>
+                        <div className="text-[10px] text-light-text-muted dark:text-dark-text-muted font-mono mt-0.5">
+                          {bi.sku} {bi.quantity > 1 ? `• Qty: ${bi.quantity}` : ''}
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <span className="font-mono font-bold text-light-text dark:text-dark-text">
+                          ৳{(bi.selling_price * bi.quantity).toFixed(2)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setBookedItems((prev) => prev.filter((_, i) => i !== idx))}
+                          className="text-danger hover:text-danger-hover p-1 rounded-lg hover:bg-danger/10 transition-colors"
+                          title="Remove item"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
 
               {/* Advance and Charge Fields */}
@@ -1235,6 +1275,106 @@ export const CourierView: React.FC<CourierViewProps> = ({
                 )}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* SEARCHABLE PRODUCT CATALOG POP UP (Image 2) */}
+      {showCatalogModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="w-full max-w-lg bg-light-surface dark:bg-dark-surface rounded-2xl border border-light-border dark:border-dark-border p-4 md:p-6 shadow-2xl space-y-4 max-h-[90dvh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-light-border dark:border-dark-border pb-3">
+              <div>
+                <h3 className="font-bold text-base text-light-text dark:text-dark-text">Select Product from Catalog</h3>
+                <p className="text-[11px] text-light-text-muted dark:text-dark-text-muted mt-0.5">
+                  Choose a product variation to add to this courier parcel
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCatalogModal(false);
+                  setCatalogSearch('');
+                }}
+                className="p-1 rounded-lg hover:bg-light-surface-hover dark:hover:bg-dark-surface-hover text-light-text-muted hover:text-light-text dark:hover:text-dark-text transition-colors"
+                aria-label="Close catalog modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Search Input Bar (matching Image 2) */}
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-3 text-light-text-muted dark:text-dark-text-muted" />
+              <input
+                type="text"
+                autoFocus
+                value={catalogSearch}
+                onChange={(e) => setCatalogSearch(e.target.value)}
+                placeholder="Search catalog products..."
+                className="w-full h-9 pl-9 pr-8 rounded-xl text-xs bg-light-surface-hover dark:bg-dark-surface-hover border border-light-border dark:border-dark-border text-light-text dark:text-dark-text placeholder:text-light-text-muted focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              {catalogSearch && (
+                <button
+                  type="button"
+                  onClick={() => setCatalogSearch('')}
+                  className="absolute right-2.5 top-2.5 text-light-text-muted hover:text-light-text text-xs"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Scrollable Product Variations List (matching Image 2) */}
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+              {filteredCatalogItems.length === 0 ? (
+                <div className="p-8 text-center text-xs text-light-text-muted dark:text-dark-text-muted">
+                  {catalogSearch
+                    ? `No products match "${catalogSearch}"`
+                    : 'No catalog products available in inventory.'}
+                </div>
+              ) : (
+                filteredCatalogItems.map((item) => {
+                  const shopQty =
+                    item.stocks?.find((s) => s.location_id === activeShop?.id)?.qty ?? 0;
+                  return (
+                    <div
+                      key={item.variation_id}
+                      onClick={() => handleSelectCatalogProduct(item)}
+                      className="p-3 rounded-xl border border-light-border dark:border-dark-border bg-light-surface-hover dark:bg-dark-surface-hover hover:border-primary cursor-pointer flex items-center justify-between transition-colors group"
+                    >
+                      <div>
+                        <div className="font-bold text-xs text-light-text dark:text-dark-text group-hover:text-primary dark:group-hover:text-primary-tint transition-colors">
+                          {item.product_name}
+                        </div>
+                        <div className="text-[10px] text-light-text-muted dark:text-dark-text-muted font-mono mt-0.5">
+                          Size:{' '}
+                          <span className="font-bold text-rose-500 dark:text-rose-400">
+                            {item.size}
+                          </span>{' '}
+                          | {item.sku}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-mono font-bold text-xs text-light-text dark:text-dark-text">
+                          ৳{Number(item.selling_price || 0).toFixed(2)}
+                        </div>
+                        <div
+                          className={`text-[10px] font-bold ${
+                            shopQty > 0
+                              ? 'text-emerald-500 dark:text-emerald-400'
+                              : 'text-rose-500 dark:text-rose-400'
+                          }`}
+                        >
+                          {shopQty} in shop
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>
       )}

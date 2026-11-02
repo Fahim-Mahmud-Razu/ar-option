@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "deploy": "npm run build && wrangler deploy",
     "test:e2e": "node -e 'require(\"dotenv\").config({ path: require(\"path\").resolve(__dirname, \"../../.env.test\") }); const url = new URL(process.env.DATABASE_URL || \"\"); if (url.hostname !== \"localhost\" && url.hostname !== \"127.0.0.1\") { console.error(\"ABORT: DATABASE_URL must point to localhost or 127.0.0.1 for tests. Got: \" + url.hostname); process.exit(1); }' && playwright test",
     "test": "npm run test:e2e",
     "test:real": "playwright test --config playwright.real.config.ts"
