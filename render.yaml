@@ -13,7 +13,7 @@ services:
       - key: HOST
         value: 0.0.0.0
       - key: CORS_ORIGIN
-        value: https://ar-option-web.a-r-option-shop.workers.dev
+        value: https://ar-option-shop.pages.dev,https://bf420a69.ar-option-shop.pages.dev,http://localhost:5173
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET
