@@ -41,7 +41,10 @@ async function bootstrap() {
       if (!origin) {
         return callback(null, true);
       }
-      if (allowedOrigins.includes(origin)) {
+      if (
+        allowedOrigins.includes(origin) ||
+        /^https:\/\/[a-z0-9_-]+\.ar-option-shop\.pages\.dev$/.test(origin)
+      ) {
         return callback(null, true);
       }
       return callback(
