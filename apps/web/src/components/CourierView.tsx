@@ -36,7 +36,7 @@ export const CourierView: React.FC<CourierViewProps> = ({
 }) => {
   const sizesOn = useSizes();
   const [activeTab, setActiveTab] = useState<'parcels' | 'settlement' | 'history'>('parcels');
-  const [quickFilter, setQuickFilter] = useState<'all' | 'out_now' | 'delivered_unpaid' | 'returned'>('all');
+  const [quickFilter, setQuickFilter] = useState<'all' | 'out_now' | 'delivered_unpaid' | 'paid' | 'unpaid' | 'returned'>('all');
   const [parcels, setParcels] = useState<CourierParcel[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -60,6 +60,7 @@ export const CourierView: React.FC<CourierViewProps> = ({
   const [customerPhone, setCustomerPhone] = useState<string>('');
   const [customerAddress, setCustomerAddress] = useState<string>('');
   const [courierName, setCourierName] = useState<string>('Steadfast');
+  const [customCourierName, setCustomCourierName] = useState<string>('');
   const [trackingNumber, setTrackingNumber] = useState<string>('');
   const [advanceAmount, setAdvanceAmount] = useState<string>('');
   const [advanceAccountId, setAdvanceAccountId] = useState<number | null>(null);
@@ -276,6 +277,10 @@ export const CourierView: React.FC<CourierViewProps> = ({
     try {
       const adv = parseFloat(advanceAmount) || 0;
       const fee = parseFloat(deliveryCharge) || 0;
+      const finalCourierName =
+        courierName === 'Others'
+          ? customCourierName.trim() || 'Others'
+          : courierName.trim();
 
       const res = await apiFetch(`${apiUrl}/courier/parcels/book`, {
         method: 'POST',
@@ -287,7 +292,7 @@ export const CourierView: React.FC<CourierViewProps> = ({
           customer_name: customerName.trim(),
           customer_phone: customerPhone.trim(),
           customer_address: customerAddress.trim(),
-          courier_name: courierName.trim(),
+          courier_name: finalCourierName,
           tracking_number: trackingNumber.trim() || undefined,
           advance_amount: adv,
           advance_account_id: adv > 0 ? advanceAccountId : undefined,
@@ -316,6 +321,8 @@ export const CourierView: React.FC<CourierViewProps> = ({
       setCustomerName('');
       setCustomerPhone('');
       setCustomerAddress('');
+      setCourierName('Steadfast');
+      setCustomCourierName('');
       setTrackingNumber('');
       setAdvanceAmount('');
       setParcelNotes('');
@@ -602,6 +609,28 @@ export const CourierView: React.FC<CourierViewProps> = ({
               </button>
               <button
                 type="button"
+                onClick={() => setQuickFilter('paid')}
+                className={`px-2.5 py-1 rounded-lg transition-colors ${
+                  quickFilter === 'paid'
+                    ? 'bg-primary text-on-primary'
+                    : 'bg-light-surface-hover dark:bg-dark-surface-hover text-light-text-muted'
+                }`}
+              >
+                Paid
+              </button>
+              <button
+                type="button"
+                onClick={() => setQuickFilter('unpaid')}
+                className={`px-2.5 py-1 rounded-lg transition-colors ${
+                  quickFilter === 'unpaid'
+                    ? 'bg-primary text-on-primary'
+                    : 'bg-light-surface-hover dark:bg-dark-surface-hover text-light-text-muted'
+                }`}
+              >
+                Unpaid
+              </button>
+              <button
+                type="button"
                 onClick={() => setQuickFilter('returned')}
                 className={`px-2.5 py-1 rounded-lg transition-colors ${
                   quickFilter === 'returned'
@@ -699,7 +728,7 @@ export const CourierView: React.FC<CourierViewProps> = ({
                       </div>
                     </div>
 
-                    {parcel.delivery_status !== 'delivered' && parcel.delivery_status !== 'returned' && (
+                    {parcel.delivery_status !== 'delivered' && parcel.delivery_status !== 'returned' ? (
                       <button
                         type="button"
                         onClick={() => {
@@ -711,7 +740,20 @@ export const CourierView: React.FC<CourierViewProps> = ({
                         <PackageCheck className="w-4 h-4" />
                         <span>Update Delivery Status</span>
                       </button>
-                    )}
+                    ) : parcel.delivery_status === 'delivered' && parcel.payment_status === 'unpaid' ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedParcelIds([parcel.id]);
+                          setAmountReceived(parcel.collectible_amount.toFixed(2));
+                          setActiveTab('settlement');
+                        }}
+                        className="w-full h-10 rounded-xl bg-primary text-on-primary text-xs font-bold flex items-center justify-center space-x-1.5 shadow-sm"
+                      >
+                        <DollarSign className="w-4 h-4" />
+                        <span>Settle Parcel (৳{parcel.collectible_amount.toFixed(2)})</span>
+                      </button>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -801,8 +843,20 @@ export const CourierView: React.FC<CourierViewProps> = ({
                               >
                                 Update
                               </button>
+                            ) : parcel.delivery_status === 'delivered' && parcel.payment_status === 'unpaid' ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedParcelIds([parcel.id]);
+                                  setAmountReceived(parcel.collectible_amount.toFixed(2));
+                                  setActiveTab('settlement');
+                                }}
+                                className="px-2.5 py-1 text-xs font-bold rounded-lg bg-primary/10 text-primary border border-primary/20 hover:bg-primary hover:text-on-primary transition-colors"
+                              >
+                                Settle
+                              </button>
                             ) : (
-                              <span className="text-[11px] text-light-text-muted">Completed</span>
+                              <span className="text-[11px] text-light-text-muted">Settled</span>
                             )}
                           </td>
                         </tr>
@@ -915,9 +969,20 @@ export const CourierView: React.FC<CourierViewProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-light-text-muted mb-1">
-                      Amount Received (Bank / Cash) *
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-semibold text-light-text-muted">
+                        Amount Received (Bank / Cash) *
+                      </label>
+                      {expectedSettlementTotal > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setAmountReceived(expectedSettlementTotal.toFixed(2))}
+                          className="text-[11px] font-bold text-primary dark:text-primary-tint hover:underline"
+                        >
+                          Match Expected
+                        </button>
+                      )}
+                    </div>
                     <input
                       type="number"
                       step="0.01"
@@ -1147,6 +1212,7 @@ export const CourierView: React.FC<CourierViewProps> = ({
                     <option value="Pathao">Pathao</option>
                     <option value="Paperfly">Paperfly</option>
                     <option value="RedX">RedX</option>
+                    <option value="Others">Others</option>
                   </select>
                 </div>
                 <div>
@@ -1162,6 +1228,21 @@ export const CourierView: React.FC<CourierViewProps> = ({
                   />
                 </div>
               </div>
+
+              {courierName === 'Others' && (
+                <div>
+                  <label className="block text-xs font-semibold text-light-text-muted mb-1">
+                    Courier Partner Name (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={customCourierName}
+                    onChange={(e) => setCustomCourierName(e.target.value)}
+                    placeholder="e.g. Sundarban, eCourier, SA Paribahan (defaults to 'Others')..."
+                    className="w-full h-9 px-3 rounded-xl text-xs bg-light-surface-hover dark:bg-dark-surface-hover border border-light-border"
+                  />
+                </div>
+              )}
 
               {/* Items Picker */}
               <div className="space-y-2 pt-2 border-t border-light-border dark:border-dark-border">

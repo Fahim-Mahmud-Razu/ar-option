@@ -39,12 +39,11 @@ export class ReturnsService {
     if (!dto.items || dto.items.length === 0) {
       throw new BadRequestException('At least one return or exchange item is required.');
     }
-    if (!dto.reason || !dto.reason.trim()) {
-      throw new BadRequestException('A reason is mandatory for all returns and exchanges.');
-    }
+
+    const isManual = Boolean(dto.is_manual || !dto.sale_id);
+    const returnReason = dto.reason?.trim() || (isManual ? 'Manual return' : 'Return / Exchange');
 
     // 1. Manual Return checks
-    const isManual = Boolean(dto.is_manual || !dto.sale_id);
     if (isManual) {
       const hasManualPerm =
         user.role === 'admin' ||
@@ -53,11 +52,6 @@ export class ReturnsService {
       if (!hasManualPerm) {
         throw new ForbiddenException(
           'Manual returns require the returns.manual permission.'
-        );
-      }
-      if (!dto.customer_phone || !dto.customer_phone.trim()) {
-        throw new BadRequestException(
-          'Customer phone number is required for manual returns.'
         );
       }
     }
@@ -471,7 +465,7 @@ export class ReturnsService {
           isManual,
           dto.customer_name || null,
           dto.customer_phone || null,
-          dto.reason.trim(),
+          returnReason,
           dto.notes?.trim() || null,
           inboundSubtotal,
           outboundSubtotal,

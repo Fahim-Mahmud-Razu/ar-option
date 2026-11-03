@@ -566,7 +566,10 @@ export class CourierService {
       const countRes = await client.query(
         'SELECT COALESCE(COUNT(*), 0) + 1 AS next_seq FROM courier_settlements'
       );
-      const settlementRef = `SET-${dto.courier_name.substring(0, 3).toUpperCase()}-${String(countRes.rows[0].next_seq).padStart(6, '0')}`;
+      const prefix = ((dto.courier_name || 'OTH').trim().replace(/[^a-zA-Z0-9]/g, '').substring(0, 3) || 'OTH')
+        .toUpperCase()
+        .padEnd(3, 'X');
+      const settlementRef = `SET-${prefix}-${String(countRes.rows[0].next_seq).padStart(6, '0')}`;
 
       // 5. Post Settlement Ledger Entry (Rule 5.2):
       // Dr Bank/Cash (amount_received)
@@ -751,6 +754,10 @@ export class CourierService {
       sql += " AND cp.delivery_status IN ('booked', 'in_transit')";
     } else if (filter === 'delivered_unpaid') {
       sql += " AND cp.delivery_status = 'delivered' AND cp.payment_status = 'unpaid'";
+    } else if (filter === 'paid') {
+      sql += " AND cp.payment_status = 'paid'";
+    } else if (filter === 'unpaid') {
+      sql += " AND cp.payment_status = 'unpaid'";
     } else if (filter === 'returned') {
       sql += " AND cp.delivery_status = 'returned'";
     }

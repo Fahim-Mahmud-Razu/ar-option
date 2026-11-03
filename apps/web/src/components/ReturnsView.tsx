@@ -1,13 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   RotateCcw,
-  AlertTriangle,
   CheckCircle2,
   AlertCircle,
   Plus,
   Trash2,
   Search,
-  ShieldCheck,
   X,
   History,
 } from 'lucide-react';
@@ -99,9 +97,6 @@ export const ReturnsView: React.FC<ReturnsViewProps> = ({
     type: 'success' | 'error';
     message: string;
   } | null>(null);
-
-  // Approval limit threshold
-  const approvalLimit = 2000.0;
 
   // Fetch Accounts for active shop
   const fetchAccounts = useCallback(async (shopId: number) => {
@@ -349,25 +344,18 @@ export const ReturnsView: React.FC<ReturnsViewProps> = ({
       setFeedback({ type: 'error', message: 'Please add at least one item to return or exchange.' });
       return;
     }
-    if (!reason.trim()) {
-      setFeedback({ type: 'error', message: 'A reason is mandatory for returns and exchanges.' });
-      return;
-    }
-    if (isManualReturn && !customerPhone.trim()) {
-      setFeedback({ type: 'error', message: 'Customer phone number is required on manual returns.' });
-      return;
-    }
 
     setSubmitting(true);
     setFeedback(null);
 
     try {
+      const finalReason = reason.trim() || (isManualReturn ? 'Manual return' : 'Return / Exchange');
       const payload = {
         sale_id: isManualReturn ? undefined : linkedSale?.id,
         is_manual: isManualReturn,
         customer_name: customerName.trim() || undefined,
         customer_phone: customerPhone.trim() || undefined,
-        reason: reason.trim(),
+        reason: finalReason,
         notes: notes.trim() || undefined,
         payment_account_id: paymentAccountId || undefined,
         action_type: netAmount > 0 ? 'customer_paid' : netAmount < 0 ? 'refunded' : 'even',
@@ -642,12 +630,7 @@ export const ReturnsView: React.FC<ReturnsViewProps> = ({
                   {lookupLoading ? 'Searching...' : 'Find Sale'}
                 </button>
               </div>
-            ) : (
-              <div className="flex items-center space-x-2 text-xs text-amber-600 dark:text-amber-400 font-semibold bg-amber-500/10 px-3 py-1.5 rounded-xl border border-amber-500/20">
-                <AlertTriangle className="w-4 h-4" />
-                <span>Manual returns require phone number & reason. Limit ৳2,000.</span>
-              </div>
-            )}
+            ) : null}
           </div>
 
           {lookupError && (
@@ -962,23 +945,14 @@ export const ReturnsView: React.FC<ReturnsViewProps> = ({
                 <div className="text-xl font-extrabold font-mono">{netSentence}</div>
               </div>
 
-              {/* Approval Warning for Manual Return > 2,000 */}
-              {isManualReturn && inboundSubtotal > approvalLimit && (
-                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs flex items-center space-x-2">
-                  <ShieldCheck className="w-4 h-4 flex-shrink-0" />
-                  <span>Manual return exceeds ৳2,000 limit. Requires manager approval.</span>
-                </div>
-              )}
-
               {/* Form fields */}
               <div className="space-y-2.5">
                 <div>
                   <label className="block text-[11px] font-semibold text-light-text-muted mb-1">
-                    Return Reason *
+                    Return Reason
                   </label>
                   <input
                     type="text"
-                    required
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
                     placeholder="e.g. Size exchange, Defective button, Color swap..."
@@ -1001,11 +975,10 @@ export const ReturnsView: React.FC<ReturnsViewProps> = ({
                   </div>
                   <div>
                     <label className="block text-[11px] font-semibold text-light-text-muted mb-1">
-                      Phone Number {isManualReturn ? '*' : ''}
+                      Phone Number
                     </label>
                     <input
                       type="tel"
-                      required={isManualReturn}
                       value={customerPhone}
                       onChange={(e) => setCustomerPhone(e.target.value)}
                       placeholder="017xxxxxxxx"
