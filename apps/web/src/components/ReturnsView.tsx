@@ -19,6 +19,7 @@ import type {
   Sale,
 } from '@ar-option/shared-types';
 import { apiFetch } from '../lib/api';
+import { sizeLabel, useSizes } from '../lib/settings';
 
 interface ReturnsViewProps {
   activeShop: Shop | null;
@@ -54,6 +55,7 @@ export const ReturnsView: React.FC<ReturnsViewProps> = ({
   apiUrl,
   onReturnCompleted,
 }) => {
+  const sizesOn = useSizes();
   const [activeSubTab, setActiveSubTab] = useState<'create' | 'history'>('create');
   const [mobileStep, setMobileStep] = useState<1 | 2 | 3>(1); // 1: Coming back, 2: Going out, 3: Settle
 
@@ -683,7 +685,7 @@ export const ReturnsView: React.FC<ReturnsViewProps> = ({
                     <div>
                       <div className="font-bold text-xs">{item.product_name}</div>
                       <div className="text-[10px] text-light-text-muted font-mono">
-                        Size: {item.size} • Qty: {item.quantity} • ৳{item.unit_price}
+                        {sizeLabel(item.size, sizesOn) && `Size: ${sizeLabel(item.size, sizesOn)} • `}Qty: {item.quantity} • ৳{item.unit_price}
                       </div>
                     </div>
                     <Plus className="w-4 h-4 text-primary" />
@@ -811,7 +813,7 @@ export const ReturnsView: React.FC<ReturnsViewProps> = ({
                         <div>
                           <div className="font-bold text-xs">{item.product_name}</div>
                           <div className="text-[10px] text-light-text-muted font-mono">
-                            Size: {item.size} • ৳{item.unit_price.toFixed(2)} each
+                            {sizeLabel(item.size, sizesOn) && `Size: ${sizeLabel(item.size, sizesOn)} • `}৳{item.unit_price.toFixed(2)} each
                           </div>
                         </div>
                         <button
@@ -911,7 +913,7 @@ export const ReturnsView: React.FC<ReturnsViewProps> = ({
                         <div>
                           <div className="font-bold text-xs">{item.product_name}</div>
                           <div className="text-[10px] text-light-text-muted font-mono">
-                            Size: {item.size} • ৳{item.unit_price.toFixed(2)} each
+                            {sizeLabel(item.size, sizesOn) && `Size: ${sizeLabel(item.size, sizesOn)} • `}৳{item.unit_price.toFixed(2)} each
                           </div>
                         </div>
                         <button
@@ -1121,7 +1123,7 @@ export const ReturnsView: React.FC<ReturnsViewProps> = ({
                       <div>
                         <div className="font-bold text-xs">{item.product_name}</div>
                         <div className="text-[10px] text-light-text-muted font-mono">
-                          Size: <span className="font-bold text-primary">{item.size}</span> | {item.sku}
+                          {sizeLabel(item.size, sizesOn) && <>Size: <span className="font-bold text-primary">{sizeLabel(item.size, sizesOn)}</span> | </>}{item.sku}
                         </div>
                       </div>
                       <div className="text-right">

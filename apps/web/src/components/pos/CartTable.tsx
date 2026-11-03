@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   ArrowRight,
 } from 'lucide-react';
+import { sizeLabel, useSizes } from '../../lib/settings';
 import type { Account } from '@ar-option/shared-types';
 import type { CartLineItem } from './types';
 import { taka } from '../../lib/money';
@@ -57,6 +58,7 @@ export const CartTable: React.FC<CartTableProps> = ({
   onProceedToCheckout,
   submitting,
 }) => {
+  const sizesOn = useSizes();
   const [bKashModalOpen, setBKashModalOpen] = useState(false);
   const [bKashTrxId, setBKashTrxId] = useState('');
   const [bKashSender, setBKashSender] = useState('');
@@ -138,7 +140,7 @@ export const CartTable: React.FC<CartTableProps> = ({
           <div className="flex flex-col items-center justify-center h-48 text-center text-light-text-muted dark:text-dark-text-muted">
             <ShoppingCart className="w-8 h-8 stroke-1 mb-2 opacity-50" />
             <p className="text-xs font-semibold">Cart is empty</p>
-            <p className="text-[11px] mt-1">Tap a size card on the right or scan a SKU</p>
+            <p className="text-[11px] mt-1">{sizesOn ? 'Tap a size card on the right or scan a SKU' : 'Tap a product or enter its code'}</p>
           </div>
         ) : (
           cart.map((item) => {
@@ -156,9 +158,11 @@ export const CartTable: React.FC<CartTableProps> = ({
                       {item.product_name}
                     </div>
                     <div className="flex items-center gap-1.5 mt-1 text-[11px] text-light-text-muted font-mono">
-                      <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary dark:text-primary-tint font-bold">
-                        Size: {item.size}
-                      </span>
+                      {sizeLabel(item.size, sizesOn) && (
+                        <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary dark:text-primary-tint font-bold">
+                          Size: {sizeLabel(item.size, sizesOn)}
+                        </span>
+                      )}
                       <span className="truncate">{item.sku}</span>
                     </div>
                   </div>

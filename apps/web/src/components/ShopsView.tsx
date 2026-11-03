@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Store, Plus, CheckCircle2, AlertCircle, X } from 'lucide-react';
+import { Store, Plus, CheckCircle2, AlertCircle, X, Pencil } from 'lucide-react';
 import type { Shop } from '@ar-option/shared-types';
 import { apiFetch } from '../lib/api';
+import { Sheet } from './Sheet';
 
 interface ShopsViewProps {
   shops: Shop[];
@@ -20,6 +21,44 @@ export const ShopsView: React.FC<ShopsViewProps> = ({
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Shop | null>(null);
+  const [editName, setEditName] = useState<string>('');
+  const [editError, setEditError] = useState<string | null>(null);
+  const [savingEdit, setSavingEdit] = useState<boolean>(false);
+
+  const openEdit = (shop: Shop) => {
+    setEditing(shop);
+    setEditName(shop.name);
+    setEditError(null);
+  };
+
+  const handleRename = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editing) return;
+    const clean = editName.replace(/\s+/g, ' ').trim();
+    if (!clean) {
+      setEditError('Shop name is required.');
+      return;
+    }
+    setSavingEdit(true);
+    setEditError(null);
+    try {
+      const res = await apiFetch(`${apiUrl}/shops/${editing.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: clean }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Could not rename the shop.');
+      setSuccess(`Shop renamed to '${data.name}'.`);
+      setEditing(null);
+      onRefreshShops();
+    } catch (err: any) {
+      setEditError(err.message || 'Could not rename the shop.');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const handleCreateShop = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,11 +156,70 @@ export const ShopsView: React.FC<ShopsViewProps> = ({
 
             <div className="pt-3 border-t border-light-border dark:border-dark-border flex items-center justify-between text-xs text-light-text-muted dark:text-dark-text-muted">
               <span>{shop.is_system ? 'System Location' : 'Physical Retail Store'}</span>
-              <span className="font-semibold text-primary dark:text-primary-tint">Rule 1 Protected</span>
+              {!shop.is_system && (
+                <button
+                  type="button"
+                  onClick={() => openEdit(shop)}
+                  aria-label={`Edit ${shop.name}`}
+                  className="h-11 px-3 -my-2 -mr-2 rounded-xl font-semibold text-primary dark:text-primary-tint hover:bg-light-surface-hover dark:hover:bg-dark-surface-hover flex items-center space-x-1.5"
+                >
+                  <Pencil className="w-4 h-4" />
+                  <span>Edit</span>
+                </button>
+              )}
             </div>
           </div>
         ))}
       </div>
+
+      {editing && (
+        <Sheet
+          title="Edit Shop"
+          onClose={() => setEditing(null)}
+          testId="edit-shop-sheet"
+          footer={
+            <div className="flex items-center justify-end gap-3">
+              <button type="button" onClick={() => setEditing(null)} className="h-11 px-4 rounded-xl text-sm font-semibold bg-light-surface-hover dark:bg-dark-surface-hover">
+                Cancel
+              </button>
+              <button type="submit" form="edit-shop-form" disabled={savingEdit} className="h-11 px-5 rounded-xl text-sm font-bold bg-primary text-on-primary hover:bg-primary-hover disabled:opacity-50">
+                {savingEdit ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          }
+        >
+          <form id="edit-shop-form" onSubmit={handleRename} className="space-y-4">
+            {editError && (
+              <div role="alert" className="p-3 rounded-xl bg-danger/10 text-danger-text-light dark:text-danger text-sm flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{editError}</span>
+              </div>
+            )}
+            <div>
+              <label htmlFor="edit-shop-name" className="block text-xs font-semibold text-light-text-muted dark:text-dark-text-muted mb-1">
+                Shop Name
+              </label>
+              <input
+                id="edit-shop-name"
+                type="text"
+                maxLength={100}
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="w-full h-11 px-3 rounded-xl text-sm bg-light-surface-hover dark:bg-dark-surface-hover border border-light-border dark:border-dark-border focus:outline-none focus:ring-2 focus:ring-focus-ring"
+              />
+            </div>
+            <div>
+              <span className="block text-xs font-semibold text-light-text-muted dark:text-dark-text-muted mb-1">Shop Code</span>
+              <div className="h-11 px-3 rounded-xl text-sm font-mono flex items-center bg-light-surface-hover/60 dark:bg-dark-surface-hover/60 border border-light-border dark:border-dark-border text-light-text-muted dark:text-dark-text-muted">
+                {editing.code}
+              </div>
+              <p className="text-xs text-light-text-muted dark:text-dark-text-muted mt-1">
+                The code cannot change, because receipts already carry it ({editing.code}-000001). The shop's cash, card and bKash accounts take the new name.
+              </p>
+            </div>
+          </form>
+        </Sheet>
+      )}
 
       {/* Add Shop Modal */}
       {showAddModal && (

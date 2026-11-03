@@ -2,6 +2,7 @@ import { Injectable, Inject, BadRequestException, ForbiddenException } from '@ne
 import { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { ProductsService } from './products.service';
+import { SettingsService } from '../settings/settings.service';
 import {
   analyzeCatalogRows,
   toCsv,
@@ -17,7 +18,8 @@ const SKU_LOCK_KEY = 'catalog_sku';
 export class ImportsService {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
-    private readonly productsService: ProductsService
+    private readonly productsService: ProductsService,
+    private readonly settingsService: SettingsService
   ) {}
 
   async preview(dto: ImportRequest, user: User): Promise<ImportPreview> {
@@ -123,6 +125,7 @@ export class ImportsService {
 
   /** The catalog as a file that can be edited and imported again. Add Stock is left blank. */
   async exportCsv(): Promise<string> {
+    const useSizes = await this.settingsService.useSizes();
     const res = await this.pool.query(
       `SELECT p.name, pv.size, pv.sku, c.name AS category, sc.name AS sub_category, b.name AS brand,
               pv.cost_price, pv.selling_price, p.alert_quantity,
@@ -139,13 +142,13 @@ export class ImportsService {
       'Product Name', 'Size', 'SKU', 'Category', 'Brand', 'Cost Price', 'Selling Price',
       'Add Stock', 'Sub Category', 'Alert Qty', 'Shop', 'Current Stock',
     ];
-    return toCsv([
-      header,
-      ...res.rows.map((r) => [
-        r.name, r.size, r.sku, r.category ?? '', r.brand ?? '', Number(r.cost_price), Number(r.selling_price),
-        '', r.sub_category ?? '', r.alert_quantity, '', Number(r.qty),
-      ]),
+    const rows: (string | number)[][] = res.rows.map((r) => [
+      r.name, r.size, r.sku, r.category ?? '', r.brand ?? '', Number(r.cost_price), Number(r.selling_price),
+      '', r.sub_category ?? '', r.alert_quantity, '', Number(r.qty),
     ]);
+    // Sizes off: the file has no Size column at all.
+    const dropSize = (cells: (string | number)[]) => (useSizes ? cells : cells.filter((_, i) => i !== 1));
+    return toCsv([dropSize(header), ...rows.map(dropSize)]);
   }
 
   private checkRows(dto: ImportRequest): void {
@@ -209,6 +212,6 @@ export class ImportsService {
         cost: Number(r.cost_price), selling: Number(r.selling_price), qty: Number(r.qty),
       });
     }
-    return { products: [...products.values()], shops, activeShopId };
+    return { products: [...products.values()], shops, activeShopId, useSizes: await this.settingsService.useSizes(db) };
   }
 }

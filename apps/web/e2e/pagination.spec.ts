@@ -31,6 +31,20 @@ test.describe('Pagination Control System E2E Tests', () => {
       });
     });
 
+    await page.route('**/settings', async (route) => {
+
+      await route.fulfill({
+
+        status: 200,
+
+        contentType: 'application/json',
+
+        body: JSON.stringify({ use_sizes: true, manual_return_approval_limit: 2000 }),
+
+      });
+
+    });
+
     await page.route('**/health', async (route) => {
       await route.fulfill({
         status: 200,

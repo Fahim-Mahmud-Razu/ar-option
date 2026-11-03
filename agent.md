@@ -19,7 +19,7 @@ The product must always be able to answer these four questions correctly:
 
 1. How much did each shop sell, and how much did all shops sell together?
 2. How much cash should be in each shop right now?
-3. Which sizes of a product are in which shop?
+3. Which products (and, when sizes are on, which sizes) are in which shop?
 4. Which courier parcels are still out, and how much money do couriers owe the business?
 
 ---
@@ -39,7 +39,7 @@ The product must always be able to answer these four questions correctly:
 | Payment Accounts | Cash, bank and mobile money accounts |
 | Financial Statements | Balance Sheet, Trial Balance, Cash Flow |
 | Reports | Profit & Loss, Sales, Stock, Daily Cash Closing, Expenses, Manual Returns |
-| Settings | Business profile, shops, return limits |
+| Settings | Business profile, shops, return limits, the sizes setting, backup, restore and reset |
 
 **Out of scope.** These must have no menu item, no route and no reachable API:
 
@@ -103,7 +103,7 @@ Use these words in the UI, in code comments and in tests.
 - Look up accounts by stable code. **Never hardcode a numeric account ID and never fall back with `|| 1`.**
 - Each shop has configured payment accounts. If an account is missing, fail with a clear error.
 - Reports and Cash Flow classify lines by `entry_type`. **Never read note text to decide what a line means.**
-- Posted entries are permanent. Correct a mistake with a reversal entry plus a new entry.
+- Posted entries are permanent. Correct a mistake with a reversal entry plus a new entry. The only exception is an admin's backup restore or data reset (section 5.6), which replaces or empties the books as a whole.
 - Opening balances come from setup data. Never put demo balances or hardcoded opening figures in production code.
 - Equity must come from ledger data. Never calculate it as assets minus liabilities, because that makes the balance check impossible to fail.
 - Purchases debit Inventory. Cost of goods is posted when goods are sold.
@@ -112,7 +112,7 @@ Use these words in the UI, in code comments and in tests.
 
 - Every stock change goes through the stock movement service, including sales, returns, exchanges, purchases, transfers and courier events. **No direct update of `qty_available`.**
 - Each movement records who, when, from where, to where, why, and the source document.
-- Stock is tracked per size. A product with no sizes uses one default variation.
+- Stock is tracked per variation. Sizes are a business setting (`use_sizes`, off for this client). With sizes off, every product has exactly one hidden `Standard` variation whose SKU is the product code, and no screen shows a size.
 - Online counter sales cannot oversell. If an offline sale syncs and takes stock negative, accept it and add it to a review list.
 - Damaged goods never return to sellable stock.
 
@@ -235,6 +235,16 @@ Manual entry comes first. Courier API integrations are a later phase.
 - Price overrides need `pos.edit_price`. Every reduction (override, line discount and cart discount) must stay within the user's discount limit. Admins have no limit.
 - Prices and costs belong to the size, not the product. Opening stock posts Dr `INVENTORY`, Cr `OWNER_EQUITY` in the same transaction as the stock movement. A cost change on a size that holds stock posts a revaluation to `INVENTORY_ADJUSTMENT`.
 
+### 5.6 Settings, backup and reset (decided 3 November 2026)
+
+- Settings are company-wide rows in `settings`, read by `GET /settings` and changed only by an admin.
+- `use_sizes` can be turned off only while every active product has one size, so no stock split by size is hidden.
+- A shop's name can change. Its code cannot, because it is the receipt prefix. A rename also renames the shop's own accounts.
+- **Backup** is a JSON file of every business table, read in one snapshot. Every table must be listed in `apps/api/src/system/tables.ts`, or backups miss it.
+- **Restore** replaces every business table with the file's rows in one transaction. It refuses a file from another schema version.
+- **Reset** has two levels, both admin-only, typed-confirmation and one transaction. *Clear transactions* empties sales, returns, stock, transfers, courier, till, expenses, imports and the ledger, and keeps the catalog, contacts, shops and users. *Factory reset* also empties the catalog, contacts and expense categories (re-seeded with the defaults), removes every shop and every user except the admin who runs it, and keeps system accounts, system locations, role permissions and settings.
+- The web app downloads a backup before it sends any reset.
+
 ## 6. Fast Hisab Code Traps
 
 Do not carry these patterns forward.
@@ -264,7 +274,7 @@ These have not been confirmed by the client. Before building a feature that depe
 
 | # | Assumption | Affects | Status |
 |---|---|---|---|
-| 1 | Stock is tracked by size | Products, POS, transfers, returns | Confirmed by the user, 2 November 2026 |
+| 1 | Stock is tracked by size | Products, POS, transfers, returns | Changed 3 November 2026: the client does not sell by size. Sizes sit behind the `use_sizes` setting, off by default |
 | 2 | "Condition courier" means the courier collects the price and sends it to the shop | Courier module | Unconfirmed |
 | 3 | The rules for delivery charges, return charges and advances still need defining | Courier ledger entries | Unconfirmed |
 | 4 | Couriers may settle many parcels in one payment | Settlement screen | Unconfirmed |

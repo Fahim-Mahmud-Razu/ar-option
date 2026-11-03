@@ -538,6 +538,7 @@ The one screen allowed to leave the standard shell. Staff work with a customer w
 - With no barcode scanner, search by product code or name is the fastest route and takes focus on tablet and wider.
 - On phones, search does not take focus automatically, so the keyboard does not hide the grid.
 - On phones, choosing a product with sizes opens the Size Picker. On tablet and wider, every size is its own card, so one tap adds one item.
+- **Sizes off:** one card per product at every width, with no size badge, and the Size Picker never opens. See Sizes Setting.
 - Every width has a Back control. At 1024px and wider the navigation collapses to the rail while POS is open.
 - Payment buttons are at least 48px tall.
 - A **Courier sale** switch at checkout reveals customer, phone, address, courier, delivery charge and advance fields.
@@ -574,6 +575,31 @@ A suspended cart is parked on this device only. It is never saved on the server 
 - **Close & Handover** has a denomination count (1000, 500, 200, 100, 50, 20, 10, 5, 2, 1), the counted total, the difference with the expected cash, a required reason when they differ, Cash Collected by Owner, Retained in Till, and closing notes. Phone: full screen with a sticky Finish bar.
 - **Dashboard:** a Cash in Hand card shows the open session's figure and an Open POS Till button. With All shops selected, it lists one row per shop and a total.
 
+### Sizes Setting
+
+Sizes are a business setting, off for this client.
+
+- **Off:** every product has one price, one SKU (the product code) and one stock line. No screen shows a size, a size column, a size badge or the word "Standard". Labels read "Product", not "Product & Size".
+- **On:** the size behaviour in this file applies.
+- Code shows a size only through one helper, `sizeLabel`, which returns nothing when sizes are off or the size is `Standard`.
+- The switch lives in Settings. Turning it off is refused while any product has more than one size, and the message says how many.
+
+### Settings
+
+The Settings tab holds Shop Management, the Sizes switch and, for admins, Backup & Reset. Each is its own card in one column, up to 720px wide.
+
+- **Shops:** each shop card has an Edit action that opens a short sheet with the name. The code shows read-only, with the note that receipts use it.
+
+### Backup & Reset
+
+Admin only. Every action states exactly what changes.
+
+- **Download backup** is a secondary button. The file is named `ar-option-backup-YYYY-MM-DD-HHmm.json`.
+- **Restore from file** opens a confirmation that shows the backup's date and row counts, and warns that everything now in the system is replaced and everyone must sign in again.
+- **Two reset cards:** Clear transactions and Factory reset. Each lists what is deleted and what is kept, and uses the Danger button.
+- **Confirmation:** a dialog where the admin types `RESET` or `FACTORY RESET`. The button stays disabled until the text matches.
+- A backup downloads first, every time. The reset is sent only after the file is saved.
+
 ### Size Picker
 
 - A sheet on phones and a popover on tablet and wider.
@@ -582,7 +608,7 @@ A suspended cart is parked on this device only. It is never saved on the server 
 
 ### Stock by Shop Grid
 
-Rows are shops, columns are sizes, and the first column is sticky. On phones, the user picks a size and sees a list of shops, because the full grid is rarely readable at that width.
+Rows are shops, columns are sizes, and the first column is sticky. With sizes off, each row is a product. On phones, the user picks a size and sees a list of shops, because the full grid is rarely readable at that width.
 
 ### Return & Exchange
 
@@ -627,6 +653,7 @@ One page for adding and editing a product, reached from Products. It has three g
 
 - **General:** name, SKU, unit, category, sub-category, brand and low-stock alert. The SKU is Auto (the next 6-digit code) or Custom, with a live "Available" or "Already used by" check. A saved SKU cannot be changed.
 - **Category and brand** can be created from the form without leaving it.
+- **Sizes off:** one Price & Stock group with cost, margin %, selling price and opening stock per shop. There are no size chips or rows.
 - **Pricing and sizes:** each size has a SKU, cost, margin % and selling price. Selling price is cost x (1 + margin / 100). Editing the selling price recalculates the margin. A "Copy first row to all" action fills the other rows. Size chips are presets, and a custom size can be added.
 - **Stock by shop:** opening stock per size for each shop the user may use. Stock of a saved size is changed in Stock, not here.
 - **Phone:** each size is a card. **Tablet and wider:** a table, up to 960px wide. This is an exception to the 720px form width.
@@ -637,7 +664,7 @@ One page for adding and editing a product, reached from Products. It has three g
 A page of its own, reached from Products, with a Back control.
 
 - **File:** drag and drop, or Browse, for CSV (UTF-8) or XLSX. Download template and Export my products sit in the header.
-- **Columns:** Product Name, Size, SKU, Category, Brand, Cost Price, Selling Price, Add Stock, Sub Category, Alert Qty and Shop. One row per size. A blank cell keeps the current value. Add Stock adds to current stock. A blank Shop means the active shop.
+- **Columns:** Product Name, Size, SKU, Category, Brand, Cost Price, Selling Price, Add Stock, Sub Category, Alert Qty and Shop. One row per size. With sizes off, the template, export and preview have no Size column, there is no New Sizes tile, and a Size value in a file is an error. A blank cell keeps the current value. Add Stock adds to current stock. A blank Shop means the active shop.
 - **Preview:** summary tiles for New Products, New Sizes, Updated, +Stock and Errors. Tapping a tile filters the rows. Rows can also be searched. Each row shows its action and a message.
 - **Phone:** rows become cards. **Tablet and wider:** a table that scrolls inside its card.
 - **Limits:** up to 2,000 rows a file. A CSV must be UTF-8, and `.xls` is refused. Rows can be told apart by SKU, or by product name when no SKU is given.

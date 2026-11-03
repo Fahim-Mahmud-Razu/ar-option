@@ -68,40 +68,65 @@ export class ShopsService {
     }
   }
 
+  /**
+   * The code is the receipt prefix (GUL-000142) and older receipts carry it, so only the name changes.
+   * The shop's own accounts ("Gulshan Cash") are renamed with it.
+   */
   async updateShop(
     id: number,
     dto: { name?: string; is_active?: boolean }
   ): Promise<Shop> {
-    const shop = await this.getShopById(id);
-    if (!shop) {
-      throw new BadRequestException(`Shop with ID ${id} not found.`);
-    }
-    if (shop.is_system) {
-      throw new BadRequestException('System locations cannot be edited.');
-    }
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const cur = await client.query(
+        'SELECT id, name, code, is_active, is_system FROM locations WHERE id = $1 FOR UPDATE',
+        [id]
+      );
+      const shop: Shop | undefined = cur.rows[0];
+      if (!shop) {
+        throw new BadRequestException(`Shop with ID ${id} not found.`);
+      }
+      if (shop.is_system) {
+        throw new BadRequestException('System locations cannot be edited.');
+      }
 
-    const updates: string[] = [];
-    const params: any[] = [id];
+      let name = shop.name;
+      if (dto.name !== undefined) {
+        name = String(dto.name ?? '').replace(/\s+/g, ' ').trim();
+        if (!name) throw new BadRequestException('Shop name is required.');
+        if (name.length > 100) throw new BadRequestException('Shop name can be up to 100 characters.');
+        const dup = await client.query(
+          'SELECT 1 FROM locations WHERE lower(name) = lower($1) AND id <> $2 LIMIT 1',
+          [name, id]
+        );
+        if (dup.rows.length > 0) {
+          throw new BadRequestException(`Another shop is already named '${name}'.`);
+        }
+      }
+      const isActive = dto.is_active !== undefined ? Boolean(dto.is_active) : shop.is_active;
 
-    if (dto.name !== undefined) {
-      params.push(dto.name.trim());
-      updates.push(`name = $${params.length}`);
+      const result = await client.query(
+        `UPDATE locations SET name = $2, is_active = $3, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1 RETURNING id, name, code, is_active, is_system`,
+        [id, name, isActive]
+      );
+
+      if (name !== shop.name) {
+        await client.query(
+          `UPDATE accounts SET name = $3 || substr(name, length($2) + 1), updated_at = CURRENT_TIMESTAMP
+           WHERE location_id = $1 AND left(name, length($2) + 1) = $2 || ' '`,
+          [id, shop.name, name]
+        );
+      }
+
+      await client.query('COMMIT');
+      return result.rows[0];
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
     }
-    if (dto.is_active !== undefined) {
-      params.push(dto.is_active);
-      updates.push(`is_active = $${params.length}`);
-    }
-
-    if (updates.length === 0) {
-      return shop;
-    }
-
-    updates.push(`updated_at = CURRENT_TIMESTAMP`);
-
-    const result = await this.pool.query(
-      `UPDATE locations SET ${updates.join(', ')} WHERE id = $1 RETURNING id, name, code, is_active, is_system`,
-      params
-    );
-    return result.rows[0];
   }
 }

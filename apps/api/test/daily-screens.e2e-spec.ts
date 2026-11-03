@@ -54,6 +54,10 @@ describe('Step 3: Daily Screens (POS, Expenses & Bulk Import) e2e', () => {
     await app.getHttpAdapter().getInstance().ready();
 
     pool = app.get<Pool>(PG_POOL);
+
+    // These tests build products with several sizes.
+
+    await pool.query("UPDATE settings SET value = 'true' WHERE key = 'use_sizes'");
     stockMovementService = app.get<StockMovementService>(StockMovementService);
 
     // Clean test tables

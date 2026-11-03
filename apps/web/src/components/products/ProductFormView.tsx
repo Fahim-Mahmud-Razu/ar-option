@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, Copy, Plus, Save, Trash2 } from 'lucide-react';
 import type { Brand, Category, Product, Shop, StockByShopGridItem } from '@ar-option/shared-types';
 import { apiFetch } from '../../lib/api';
+import { useSizes } from '../../lib/settings';
 
 interface ProductFormViewProps {
   apiUrl: string;
@@ -73,6 +74,7 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
   onDirtyChange,
 }) => {
   const isEdit = productId !== null;
+  const sizesOn = useSizes();
   const sellingShops = shops.filter((s) => !s.is_system);
 
   const [loading, setLoading] = useState<boolean>(isEdit);
@@ -125,7 +127,8 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
       setNextCode(next.sku);
 
       if (productId === null) {
-        setRows(['M', 'L', 'XL'].map(blankRow));
+        // Sizes off: one hidden Standard row carries the price and stock.
+        setRows(sizesOn ? ['M', 'L', 'XL'].map(blankRow) : [blankRow('Standard')]);
         return;
       }
 
@@ -171,7 +174,10 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
     return () => {
       alive = false;
     };
-  }, [apiUrl, productId]);
+  }, [apiUrl, productId, sizesOn]);
+
+  // A product saved with several sizes keeps its size rows even after sizes are turned off.
+  const showSizes = sizesOn || rows.length > 1;
 
   // Live check of a typed code. Product codes and size SKUs share one list.
   useEffect(() => {
@@ -283,7 +289,7 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
       if (!code.trim()) errs.code = 'Enter a code, or switch back to Auto.';
       else if (codeCheck && codeCheck.startsWith('Already')) errs.code = codeCheck;
     }
-    if (rows.length === 0) errs.rows = 'Add at least one size.';
+    if (rows.length === 0) errs.rows = showSizes ? 'Add at least one size.' : 'Enter the price.';
     rows.forEach((r) => {
       if (!r.size.trim()) errs[`size-${r.key}`] = 'Every size needs a name.';
       if (num(r.selling) <= 0) errs[`price-${r.key}`] = 'Enter a selling price.';
@@ -305,7 +311,7 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
     const variations = rows.map((r) => ({
       id: r.id,
       size: r.size.trim(),
-      sku: r.id ? undefined : r.sku.trim() || undefined,
+      sku: r.id || !showSizes ? undefined : r.sku.trim() || undefined,
       cost_price: num(r.cost),
       selling_price: num(r.selling),
       opening_stock: Object.entries(r.stock)
@@ -385,7 +391,7 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
 
   const moneyInput = (r: Row, kind: 'cost' | 'margin' | 'selling', aria: string) => (
     <input
-      aria-label={`${aria} for ${r.size}`}
+      aria-label={showSizes ? `${aria} for ${r.size}` : aria}
       type="text"
       inputMode="decimal"
       value={r[kind]}
@@ -406,7 +412,7 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
           <div key={s.id} className="flex items-center justify-between gap-2">
             <span className="text-xs">{s.name}</span>
             <input
-              aria-label={`Opening stock of ${r.size} in ${s.name}`}
+              aria-label={showSizes ? `Opening stock of ${r.size} in ${s.name}` : `Opening stock in ${s.name}`}
               type="text"
               inputMode="numeric"
               value={r.stock[s.id] ?? ''}
@@ -434,7 +440,7 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
         <div>
           <h2 className="text-lg font-bold">{isEdit ? 'Edit Product' : 'Add Product'}</h2>
           <p className="text-xs text-light-text-muted dark:text-dark-text-muted">
-            Name, sizes, prices and opening stock in one place.
+            {showSizes ? 'Name, sizes, prices and opening stock in one place.' : 'Name, price and opening stock in one place.'}
           </p>
         </div>
       </div>
@@ -534,6 +540,30 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
         </div>
       </section>
 
+      {!showSizes && rows[0] && (
+        <section className={card} aria-labelledby="price-heading">
+          <h3 id="price-heading" className="font-bold text-sm">Price and Stock</h3>
+          {revaluation !== 0 && (
+            <div role="status" className="p-3 rounded-xl bg-warning/10 border border-warning/30 text-warning-text-light dark:text-warning text-sm">
+              This changes the value of stock you already hold by {revaluation > 0 ? '+' : '-'}{taka(Math.abs(revaluation))}. It is recorded as a stock revaluation in the books.
+            </div>
+          )}
+          <div className="grid grid-cols-3 gap-2 md:gap-4 md:max-w-xl">
+            <div><span className={label}>Cost ৳</span>{moneyInput(rows[0], 'cost', 'Cost')}</div>
+            <div><span className={label}>Margin %</span>{moneyInput(rows[0], 'margin', 'Margin')}</div>
+            <div><span className={label}>Selling ৳ *</span>{moneyInput(rows[0], 'selling', 'Selling price')}</div>
+          </div>
+          {err(`price-${rows[0].key}`)}
+          {err('rows')}
+          <div className="md:max-w-sm">
+            <span className={label}>{rows[0].id ? 'Add stock' : 'Opening stock'}</span>
+            {stockInputs(rows[0])}
+          </div>
+          <p className="text-xs text-light-text-muted dark:text-dark-text-muted">Selling price = cost x (1 + margin / 100). Editing the selling price recalculates the margin.</p>
+        </section>
+      )}
+
+      {showSizes && (
       <section className={card} aria-labelledby="sizes-heading">
         <div className="flex items-center justify-between gap-2">
           <h3 id="sizes-heading" className="font-bold text-sm">Sizes and Prices</h3>
@@ -620,6 +650,7 @@ export const ProductFormView: React.FC<ProductFormViewProps> = ({
         </div>
         <p className="text-xs text-light-text-muted dark:text-dark-text-muted">Selling price = cost x (1 + margin / 100). Editing the selling price recalculates the margin.</p>
       </section>
+      )}
 
       <div
         className="fixed bottom-0 left-0 right-0 z-20 md:static bg-light-surface dark:bg-dark-surface md:bg-transparent md:dark:bg-transparent border-t md:border-0 border-light-border dark:border-dark-border p-3 md:p-0 flex gap-3 justify-end"

@@ -66,6 +66,8 @@ describe('Catalog: per-size prices, SKUs and opening stock (e2e)', () => {
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
     pool = app.get<Pool>(PG_POOL);
+    // These tests build products with several sizes.
+    await pool.query("UPDATE settings SET value = 'true' WHERE key = 'use_sizes'");
 
     for (const table of [
       'till_movements', 'till_sessions', 'daily_cash_closings', 'courier_parcel_items', 'courier_parcels', 'courier_settlements',
@@ -292,6 +294,8 @@ describe('Catalog edit (e2e)', () => {
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
     pool = app.get<Pool>(PG_POOL);
+    // These tests build products with several sizes.
+    await pool.query("UPDATE settings SET value = 'true' WHERE key = 'use_sizes'");
 
     for (const table of [
       'till_movements', 'till_sessions', 'daily_cash_closings', 'courier_parcel_items', 'courier_parcels', 'courier_settlements',

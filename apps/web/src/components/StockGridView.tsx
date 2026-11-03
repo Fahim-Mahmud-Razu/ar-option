@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Package, RefreshCw, Layers, UploadCloud, Plus, Pencil } from 'lucide-react';
 import type { StockByShopGridItem } from '@ar-option/shared-types';
 import { apiFetch } from '../lib/api';
+import { sizeLabel, useSizes } from '../lib/settings';
 
 interface StockGridViewProps {
   apiUrl: string;
@@ -23,6 +24,7 @@ export const StockGridView: React.FC<StockGridViewProps> = ({
   const [gridItems, setGridItems] = useState<StockByShopGridItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedSizeIndex, setSelectedSizeIndex] = useState<number>(0);
+  const sizesOn = useSizes();
 
   const fetchStockGrid = () => {
     setLoading(true);
@@ -49,7 +51,7 @@ export const StockGridView: React.FC<StockGridViewProps> = ({
             <span>Products & Inventory</span>
           </h2>
           <p className="text-xs text-light-text-muted dark:text-dark-text-muted mt-0.5">
-            Rule 4: Stock tracked per size across shops and in-transit locations
+            {sizesOn ? 'Stock tracked per size across shops and in-transit locations' : 'Stock per product across shops and in-transit locations'}
           </p>
         </div>
 
@@ -100,7 +102,7 @@ export const StockGridView: React.FC<StockGridViewProps> = ({
           <Package className="w-8 h-8 text-light-text-muted dark:text-dark-text-muted mx-auto opacity-50" />
           <div className="text-sm font-semibold">No stock records found</div>
           <div className="text-xs text-light-text-muted dark:text-dark-text-muted max-w-sm mx-auto">
-            Get started by bulk importing your product catalog with size variations.
+            {sizesOn ? 'Get started by bulk importing your product catalog with size variations.' : 'Get started by adding a product or importing your product catalog.'}
           </div>
           {canImport && onImport && (
             <button
@@ -119,7 +121,7 @@ export const StockGridView: React.FC<StockGridViewProps> = ({
           <div className="md:hidden space-y-4">
             <div className="bg-light-surface dark:bg-dark-surface p-4 rounded-xl border border-light-border dark:border-dark-border space-y-3">
               <label className="block text-xs font-semibold text-light-text-muted dark:text-dark-text-muted">
-                Select Product Variation / Size
+                {sizesOn ? 'Select Product and Size' : 'Select Product'}
               </label>
               <select
                 value={selectedSizeIndex}
@@ -128,7 +130,7 @@ export const StockGridView: React.FC<StockGridViewProps> = ({
               >
                 {gridItems.map((item, idx) => (
                   <option key={item.variation_id} value={idx}>
-                    {item.product_name} - {item.size} ({item.sku})
+                    {item.product_name}{sizeLabel(item.size, sizesOn) ? ` - ${sizeLabel(item.size, sizesOn)}` : ''} ({item.sku})
                   </option>
                 ))}
               </select>
@@ -154,9 +156,11 @@ export const StockGridView: React.FC<StockGridViewProps> = ({
                     </button>
                   )}
                   <div className="flex items-center space-x-2 mt-2">
-                    <span className="text-xs font-bold px-2 py-0.5 rounded bg-primary/10 text-primary dark:text-primary-tint">
-                      Size: {gridItems[selectedSizeIndex].size}
-                    </span>
+                    {sizeLabel(gridItems[selectedSizeIndex].size, sizesOn) && (
+                      <span className="text-xs font-bold px-2 py-0.5 rounded bg-primary/10 text-primary dark:text-primary-tint">
+                        Size: {sizeLabel(gridItems[selectedSizeIndex].size, sizesOn)}
+                      </span>
+                    )}
                     <span className="text-xs font-mono text-light-text-muted">
                       Selling: ৳{gridItems[selectedSizeIndex].selling_price.toFixed(2)}
                     </span>
@@ -201,7 +205,7 @@ export const StockGridView: React.FC<StockGridViewProps> = ({
                 <thead>
                   <tr className="border-b border-light-border dark:border-dark-border text-light-text-muted dark:text-dark-text-muted uppercase tracking-wider">
                     <th className="sticky left-0 bg-light-surface dark:bg-dark-surface py-3 px-4 font-semibold z-10 border-r border-light-border dark:border-dark-border min-w-[200px]">
-                      Product & Size
+                      {sizesOn ? 'Product & Size' : 'Product'}
                     </th>
                     <th className="py-3 px-3 font-semibold text-right">Selling (৳)</th>
                     {gridItems[0]?.stocks.map((loc) => (
@@ -235,9 +239,11 @@ export const StockGridView: React.FC<StockGridViewProps> = ({
                         <td className="sticky left-0 bg-light-surface dark:bg-dark-surface py-3 px-4 font-sans border-r border-light-border dark:border-dark-border">
                           <div className="font-bold text-xs">{item.product_name}</div>
                           <div className="text-[11px] text-light-text-muted flex items-center space-x-1.5 font-mono">
-                            <span className="font-bold text-primary dark:text-primary-tint">
-                              [{item.size}]
-                            </span>
+                            {sizeLabel(item.size, sizesOn) && (
+                              <span className="font-bold text-primary dark:text-primary-tint">
+                                [{sizeLabel(item.size, sizesOn)}]
+                              </span>
+                            )}
                             <span>{item.sku}</span>
                           </div>
                         </td>

@@ -8,7 +8,7 @@ import { TopBar } from './components/TopBar';
 import { BottomTabs } from './components/BottomTabs';
 import { Sidebar } from './components/Sidebar';
 import { TransfersView } from './components/TransfersView';
-import { ShopsView } from './components/ShopsView';
+import { SettingsView } from './components/SettingsView';
 import { StockGridView } from './components/StockGridView';
 import { UsersView } from './components/UsersView';
 import { PosView } from './components/PosView';
@@ -23,6 +23,7 @@ import { DashboardView } from './components/DashboardView';
 import { DataTableExample } from './components/pagination/DataTableExample';
 import { apiFetch, getToken, setToken, SESSION_EXPIRED_EVENT } from './lib/api';
 import { readStored, writeStored } from './lib/storage';
+import { SettingsProvider } from './lib/settings';
 import type {
   HealthResponse,
   Shop,
@@ -169,7 +170,8 @@ const AppShell: React.FC<AppShellProps> = ({ session, onSignOut }) => {
 
         // Rule 1: a shop is never guessed. Only a remembered choice or a user's only shop applies.
         setActiveShop((current) => {
-          if (current) return current;
+          // Take the fresh copy, so a renamed shop shows its new name at once.
+          if (current) return usable.find((s) => s.id === current.id) ?? current;
           const savedId = Number(readStored(SHOP_KEY));
           const saved = usable.find((s) => s.id === savedId);
           if (saved) return saved;
@@ -386,9 +388,15 @@ const AppShell: React.FC<AppShellProps> = ({ session, onSignOut }) => {
               <UsersView apiUrl={apiUrl} shops={shops} />
             )}
 
-            {/* Shop Management */}
+            {/* Settings: sizes, shops, backup and reset */}
             {activeTab === 'settings' && (
-              <ShopsView shops={shops} onRefreshShops={fetchShops} apiUrl={apiUrl} />
+              <SettingsView
+                apiUrl={apiUrl}
+                isAdmin={isAdmin}
+                shops={shops}
+                onRefreshShops={fetchShops}
+                onSignOut={onSignOut}
+              />
             )}
 
             {/* Hidden fallback for pagination test */}
@@ -548,7 +556,11 @@ export const App: React.FC = () => {
 
   return (
     <>
-      {session && <AppShell session={session} onSignOut={handleSignOut} />}
+      {session && (
+        <SettingsProvider apiUrl={API_URL}>
+          <AppShell session={session} onSignOut={handleSignOut} />
+        </SettingsProvider>
+      )}
       {(!session || expired) && (
         <LoginView
           apiUrl={API_URL}

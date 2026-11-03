@@ -21,6 +21,8 @@ test.beforeAll(async () => {
   }
   await client.query("DELETE FROM accounts WHERE code LIKE 'CASH_%' OR code LIKE 'CARD_%' OR code LIKE 'BKASH_%'");
   await client.query('DELETE FROM locations WHERE is_system = false');
+  // Written for a business that sells by size.
+  await client.query("UPDATE settings SET value = 'true' WHERE key = 'use_sizes'");
   await client.end();
 });
 
@@ -118,8 +120,9 @@ for (const width of [320, 360]) {
     );
     await page.goto('/');
 
-    // Navigate to Till via Quick Launch or Cash in Hand card
-    await page.locator('[data-testid="quick-nav-cash-closing"]').click();
+    // Phones reach the Till through the More menu.
+    await page.getByTestId('mobile-nav-more').click();
+    await page.getByTestId('more-nav-cash-closing').click();
     await expect(page.getByRole('heading', { name: 'Till', exact: true })).toBeVisible();
 
     const noSideways = async () => {

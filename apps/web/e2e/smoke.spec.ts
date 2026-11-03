@@ -1,4 +1,17 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
+
+/** Opens a screen from whichever navigation this width shows. Phones reach most screens through More. */
+const goTo = async (page: Page, id: string) => {
+  // count() does not wait, so let the signed-in shell render first.
+  await page.locator('[data-testid="shop-chip"]').waitFor();
+  const direct = page.locator(`[data-testid$="-nav-${id}"]:visible`).first();
+  if (await direct.count()) {
+    await direct.click();
+    return;
+  }
+  await page.getByTestId('mobile-nav-more').click();
+  await page.getByTestId(`more-nav-${id}`).click();
+};
 
 // Rule 10 check: Test scripts abort unless DATABASE_URL host is localhost or 127.0.0.1
 test.beforeAll(() => {
@@ -31,6 +44,13 @@ test.describe('App Shell Smoke Test', () => {
       });
     });
     // Intercept API routes with mock data for standalone web verification
+    await page.route('**/settings', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ use_sizes: true, manual_return_approval_limit: 2000 }),
+      });
+    });
     await page.route('**/health', async (route) => {
       await route.fulfill({
         status: 200,
@@ -289,6 +309,10 @@ test.describe('App Shell Smoke Test', () => {
     // Verify selected indicator badge on product card
     await expect(page.locator('text=1 in cart')).toBeVisible();
 
+    // Phones keep the cart in a full-screen sheet opened from the sticky bar.
+    const openCart = page.getByRole('button', { name: /View Cart & Checkout/ });
+    if (await openCart.isVisible()) await openCart.click();
+
     // Verify cart panel displays the selected item details
     await expect(page.locator('text=Current Order (1 item)')).toBeVisible();
     await expect(page.locator('text=Size: L')).toBeVisible();
@@ -299,8 +323,7 @@ test.describe('App Shell Smoke Test', () => {
   test('navigates to Return & Exchange screen and verifies 3-step net calculation', async ({ page }) => {
     await page.goto('/');
 
-    const returnsNav = page.locator('[data-testid$="-returns"]:visible').first();
-    await returnsNav.click();
+    await goTo(page, 'returns');
 
     await expect(page.getByRole('heading', { name: 'Return & Exchange' })).toBeVisible();
     await expect(page.locator(':visible:has-text("Net Amount")').first()).toBeVisible();
@@ -378,7 +401,7 @@ test.describe('App Shell Smoke Test', () => {
   test('shows the open till, counts the drawer and closes the sheet with Back', async ({ page }) => {
     await page.goto('/');
 
-    await page.locator('[data-testid$="-cash-closing"]:visible').first().click();
+    await goTo(page, 'cash-closing');
 
     await expect(page.getByRole('heading', { name: 'Till', exact: true })).toBeVisible();
     await expect(page.getByTestId('till-current-cash')).toHaveText('৳15,500.00');

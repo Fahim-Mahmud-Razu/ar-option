@@ -19,6 +19,7 @@ import type {
 } from '@ar-option/shared-types';
 import { apiFetch } from '../../lib/api';
 import { downloadBlob, ImportFileError, readImportFile, templateCsv } from '../../lib/importFile';
+import { useSizes } from '../../lib/settings';
 
 interface ImportProductsViewProps {
   apiUrl: string;
@@ -44,6 +45,7 @@ const button =
 const newRef = () => `import-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 export const ImportProductsView: React.FC<ImportProductsViewProps> = ({ apiUrl, activeShop, onClose, onImported }) => {
+  const sizesOn = useSizes();
   const [file, setFile] = useState<File | null>(null);
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
@@ -150,7 +152,7 @@ export const ImportProductsView: React.FC<ImportProductsViewProps> = ({ apiUrl, 
   const tiles: { id: Filter; label: string; value: string | number; tone: string }[] = totals
     ? [
         { id: 'new_product', label: 'New Products', value: totals.new_products, tone: 'text-success-text-light dark:text-success' },
-        { id: 'new_size', label: 'New Sizes', value: totals.new_sizes, tone: 'text-info-text-light dark:text-info-text-dark' },
+        ...(sizesOn ? [{ id: 'new_size' as Filter, label: 'New Sizes', value: totals.new_sizes, tone: 'text-info-text-light dark:text-info-text-dark' }] : []),
         { id: 'update', label: 'Updated', value: totals.updated, tone: 'text-warning-text-light dark:text-warning' },
         { id: 'unchanged', label: 'Unchanged', value: totals.unchanged, tone: '' },
         { id: 'stock', label: '+Stock Pcs', value: `+${totals.stock_added}`, tone: 'text-success-text-light dark:text-success' },
@@ -174,12 +176,12 @@ export const ImportProductsView: React.FC<ImportProductsViewProps> = ({ apiUrl, 
           <div>
             <h2 className="text-lg font-bold">Import Products</h2>
             <p className="text-xs text-light-text-muted dark:text-dark-text-muted">
-              One row per size. Blank cells keep current values. Add Stock adds to current stock.
+              {sizesOn ? 'One row per size.' : 'One row per product.'} Blank cells keep current values. Add Stock adds to current stock.
             </p>
           </div>
         </div>
         <div className="flex gap-2">
-          <button type="button" className={button} onClick={() => downloadBlob(templateCsv(), 'catalog_import_template.csv', 'text/csv;charset=utf-8')}>
+          <button type="button" className={button} onClick={() => downloadBlob(templateCsv(sizesOn), 'catalog_import_template.csv', 'text/csv;charset=utf-8')}>
             <FileSpreadsheet className="w-4 h-4" />
             <span>Download template</span>
           </button>
@@ -216,7 +218,7 @@ export const ImportProductsView: React.FC<ImportProductsViewProps> = ({ apiUrl, 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
               ['New Products', result.totals.new_products],
-              ['New Sizes', result.totals.new_sizes],
+              ...(sizesOn ? [['New Sizes', result.totals.new_sizes]] : []),
               ['Updated', result.totals.updated],
               ['+Stock Pcs', `+${result.totals.stock_added}`],
             ].map(([l, v]) => (
@@ -333,7 +335,7 @@ export const ImportProductsView: React.FC<ImportProductsViewProps> = ({ apiUrl, 
                           <div className="min-w-0">
                             <div className="text-sm font-bold break-words">{r.product_name || '—'}</div>
                             <div className="text-xs text-light-text-muted dark:text-dark-text-muted">
-                              Row {r.row} · Size {r.size || 'Standard'}{r.sku ? ` · ${r.sku}` : ''}
+                              Row {r.row}{sizesOn && r.size && r.size.toLowerCase() !== 'standard' ? ` · Size ${r.size}` : ''}{r.sku ? ` · ${r.sku}` : ''}
                             </div>
                           </div>
                           {badge(r)}
@@ -350,7 +352,7 @@ export const ImportProductsView: React.FC<ImportProductsViewProps> = ({ apiUrl, 
                         <tr>
                           <th className="p-3 w-14 text-center">Row</th>
                           <th className="p-3">Product Name</th>
-                          <th className="p-3">Size</th>
+                          {sizesOn && <th className="p-3">Size</th>}
                           <th className="p-3">SKU</th>
                           <th className="p-3">Category</th>
                           <th className="p-3 text-right">Selling</th>
@@ -364,7 +366,7 @@ export const ImportProductsView: React.FC<ImportProductsViewProps> = ({ apiUrl, 
                           <tr key={r.row} className={r.action === 'error' ? 'bg-danger/5' : ''}>
                             <td className="p-3 text-center font-mono text-light-text-muted">{r.row}</td>
                             <td className="p-3 font-semibold">{r.product_name || '—'}</td>
-                            <td className="p-3 font-mono">{r.size || 'Standard'}</td>
+                            {sizesOn && <td className="p-3 font-mono">{r.size && r.size.toLowerCase() !== 'standard' ? r.size : '—'}</td>}
                             <td className="p-3 font-mono text-light-text-muted dark:text-dark-text-muted">{r.sku || <em>Auto</em>}</td>
                             <td className="p-3">{r.category || '—'}</td>
                             <td className="p-3 text-right font-mono">{r.selling_price ? `৳${r.selling_price}` : '—'}</td>

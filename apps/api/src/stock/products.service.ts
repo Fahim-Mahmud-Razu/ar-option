@@ -8,6 +8,7 @@ import { Pool, PoolClient } from 'pg';
 import { PG_POOL } from '../database/database.module';
 import { StockMovementService } from './stock-movement.service';
 import { LedgerService } from '../ledger/ledger.service';
+import { SettingsService } from '../settings/settings.service';
 import {
   Product,
   ProductVariation,
@@ -80,7 +81,8 @@ export class ProductsService {
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
     private readonly stockMovementService: StockMovementService,
-    private readonly ledgerService: LedgerService
+    private readonly ledgerService: LedgerService,
+    private readonly settingsService: SettingsService
   ) {}
 
   /**
@@ -134,10 +136,24 @@ export class ProductsService {
     const defaultCost = toMoney(dto.cost_price, 'Cost price');
     const defaultSelling = toMoney(dto.selling_price, 'Selling price');
 
-    const variations: CreateVariationDto[] =
+    let variations: CreateVariationDto[] =
       dto.variations && dto.variations.length > 0
         ? dto.variations
         : (dto.sizes && dto.sizes.length > 0 ? dto.sizes : ['Standard']).map((size) => ({ size }));
+
+    // Sizes off: one hidden Standard variation whose SKU is the product code.
+    const useSizes = await this.settingsService.useSizes(client);
+    if (!useSizes) {
+      if (variations.length > 1) {
+        throw new BadRequestException('Sizes are turned off. A product has one price and one stock line.');
+      }
+      const only = variations[0];
+      const askedSku = only.sku?.trim().toUpperCase();
+      if (askedSku && askedSku !== code) {
+        throw new BadRequestException('Sizes are turned off, so the SKU is the product code. Leave the SKU empty or enter the same code.');
+      }
+      variations = [{ ...only, size: 'Standard', sku: undefined }];
+    }
 
     const seenSizes = new Set<string>();
     const seenSkus = new Set<string>([code]);
@@ -168,17 +184,20 @@ export class ProductsService {
 
     for (const v of variations) {
       const size = v.size.trim();
-      const sku = v.sku && v.sku.trim()
-        ? v.sku.trim().toUpperCase()
-        : `${code}-${size.replace(/\s+/g, '_').toUpperCase()}`;
-      if (seenSkus.has(sku)) {
+      const sku = !useSizes
+        ? code
+        : v.sku && v.sku.trim()
+          ? v.sku.trim().toUpperCase()
+          : `${code}-${size.replace(/\s+/g, '_').toUpperCase()}`;
+      if (useSizes && seenSkus.has(sku)) {
         throw new BadRequestException(`SKU '${sku}' appears twice in this product.`);
       }
       seenSkus.add(sku);
       if (sku.length > 70) {
         throw new BadRequestException(`SKU '${sku}' is longer than 70 characters.`);
       }
-      await this.assertSkuFree(client, sku, 'SKU');
+      // With sizes off the SKU is the code, which was checked above.
+      if (useSizes) await this.assertSkuFree(client, sku, 'SKU');
 
       const cost = v.cost_price !== undefined ? toMoney(v.cost_price, 'Cost price') : defaultCost;
       const selling =
@@ -385,6 +404,9 @@ export class ProductsService {
           await this.receiveOpeningStock(client, v.id, stock.shop_id, stock.quantity, newCost, userId, sourceId);
         }
       } else {
+        if (!(await this.settingsService.useSizes(client))) {
+          throw new BadRequestException('Sizes are turned off. Turn them on in Settings to add a size.');
+        }
         const size = (v.size || '').trim();
         if (!size) throw new BadRequestException('Every size needs a name.');
         const sku = v.sku && v.sku.trim() ? v.sku.trim().toUpperCase() : `${code}-${size.replace(/\s+/g, '_').toUpperCase()}`;

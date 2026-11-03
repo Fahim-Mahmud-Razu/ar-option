@@ -18,6 +18,7 @@ import type {
   ReceiveTransferDto,
 } from '@ar-option/shared-types';
 import { apiFetch } from '../lib/api';
+import { sizeLabel, useSizes } from '../lib/settings';
 
 interface TransfersViewProps {
   activeShop: Shop | null;
@@ -30,6 +31,7 @@ export const TransfersView: React.FC<TransfersViewProps> = ({
   shops,
   apiUrl,
 }) => {
+  const sizesOn = useSizes();
   const [tab, setTab] = useState<StockTransferStatus>('in_transit');
   const [transfers, setTransfers] = useState<StockTransfer[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -336,7 +338,7 @@ export const TransfersView: React.FC<TransfersViewProps> = ({
                   {t.items?.map((item) => (
                     <div key={item.id} className="flex justify-between items-center text-[11px]">
                       <span>
-                        {item.product_name} ({item.size})
+                        {item.product_name}{sizeLabel(item.size, sizesOn) && ` (${sizeLabel(item.size, sizesOn)})`}
                       </span>
                       <span className="font-mono font-bold">
                         {t.status === 'received'
@@ -386,7 +388,7 @@ export const TransfersView: React.FC<TransfersViewProps> = ({
                     <td className="py-3 px-4">
                       {t.items?.map((item) => (
                         <div key={item.id} className="text-[11px]">
-                          {item.product_name} ({item.size}):{' '}
+                          {item.product_name}{sizeLabel(item.size, sizesOn) && ` (${sizeLabel(item.size, sizesOn)})`}:{' '}
                           <span className="font-mono font-bold">
                             {t.status === 'received'
                               ? `${item.qty_received}/${item.qty_sent}`
@@ -480,7 +482,7 @@ export const TransfersView: React.FC<TransfersViewProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-light-text-muted dark:text-dark-text-muted mb-1">
-                  Product & Size
+                  {sizesOn ? 'Product & Size' : 'Product'}
                 </label>
                 <select
                   value={selectedVariationId}
@@ -492,7 +494,7 @@ export const TransfersView: React.FC<TransfersViewProps> = ({
                       p.stocks.find((s) => s.location_id === activeShop?.id)?.qty || 0;
                     return (
                       <option key={p.variation_id} value={p.variation_id}>
-                        {p.product_name} - Size {p.size} (Avail: {stockInShop})
+                        {p.product_name}{sizeLabel(p.size, sizesOn) && ` - Size ${sizeLabel(p.size, sizesOn)}`} (Avail: {stockInShop})
                       </option>
                     );
                   })}
@@ -591,7 +593,7 @@ export const TransfersView: React.FC<TransfersViewProps> = ({
                         <div>
                           <div className="font-bold text-xs">{item.product_name}</div>
                           <div className="text-[11px] text-light-text-muted dark:text-dark-text-muted">
-                            Size: {item.size} • Sent: {item.qty_sent} pcs
+                            {sizeLabel(item.size, sizesOn) && `Size: ${sizeLabel(item.size, sizesOn)} • `}Sent: {item.qty_sent} pcs
                           </div>
                         </div>
 

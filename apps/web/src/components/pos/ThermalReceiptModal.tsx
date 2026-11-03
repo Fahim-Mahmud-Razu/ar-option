@@ -2,6 +2,7 @@ import React from 'react';
 import { Printer, RotateCcw } from 'lucide-react';
 import type { Sale } from '@ar-option/shared-types';
 import { taka } from '../../lib/money';
+import { sizeLabel, useSizes } from '../../lib/settings';
 
 interface ThermalReceiptModalProps {
   sale: Sale;
@@ -9,6 +10,7 @@ interface ThermalReceiptModalProps {
 }
 
 export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({ sale, onClose }) => {
+  const sizesOn = useSizes();
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-in fade-in">
       <div className="w-full max-w-sm bg-white text-black p-6 rounded-xl shadow-2xl font-mono text-xs space-y-4 max-h-[95dvh] overflow-y-auto">
@@ -34,13 +36,13 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({ sale, 
         {/* Itemized lines */}
         <div className="space-y-1.5 pb-3 border-b border-dashed border-black/40">
           <div className="flex justify-between font-bold text-[10px] uppercase border-b border-black/20 pb-1">
-            <span>Item [Size]</span>
+            <span>{sizesOn ? 'Item [Size]' : 'Item'}</span>
             <span className="text-right">Qty x Price = Total</span>
           </div>
           {sale.items?.map((item) => (
             <div key={item.id} className="text-[11px] space-y-0.5">
               <div className="font-semibold truncate">
-                {item.product_name} [{item.size}]
+                {item.product_name}{sizeLabel(item.size, sizesOn) ? ` [${sizeLabel(item.size, sizesOn)}]` : ''}
               </div>
               <div className="flex justify-between text-[10px]">
                 <span className="text-gray-600 font-mono">

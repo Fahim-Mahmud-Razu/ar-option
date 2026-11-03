@@ -44,6 +44,8 @@ test.beforeAll(async () => {
   }
   await client.query("DELETE FROM accounts WHERE code LIKE 'CASH_%' OR code LIKE 'CARD_%' OR code LIKE 'BKASH_%'");
   await client.query('DELETE FROM locations WHERE is_system = false');
+  // Written for a business that sells by size.
+  await client.query("UPDATE settings SET value = 'true' WHERE key = 'use_sizes'");
   await client.end();
 });
 

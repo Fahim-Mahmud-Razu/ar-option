@@ -2,6 +2,7 @@ import React from 'react';
 import { Clock, Play, Trash2, ShoppingCart } from 'lucide-react';
 import { Sheet } from '../Sheet';
 import { taka } from '../../lib/money';
+import { sizeLabel, useSizes } from '../../lib/settings';
 import type { SuspendedCart } from './types';
 
 interface SuspendedCartsModalProps {
@@ -17,6 +18,7 @@ export const SuspendedCartsModal: React.FC<SuspendedCartsModalProps> = ({
   onResume,
   onDiscard,
 }) => {
+  const sizesOn = useSizes();
   return (
     <Sheet title={`Suspended Carts (${carts.length})`} onClose={onClose} testId="suspended-carts-modal">
       <div className="space-y-3">
@@ -66,7 +68,7 @@ export const SuspendedCartsModal: React.FC<SuspendedCartsModalProps> = ({
 
                   {/* Items summary */}
                   <div className="text-xs text-light-text-muted truncate">
-                    {cart.items.map((i) => `${i.product_name} (${i.size}) × ${i.quantity}`).join(', ')}
+                    {cart.items.map((i) => `${i.product_name}${sizeLabel(i.size, sizesOn) ? ` (${sizeLabel(i.size, sizesOn)})` : ''} × ${i.quantity}`).join(', ')}
                   </div>
 
                   <div className="flex items-center justify-end gap-2 pt-1 border-t border-light-border dark:border-dark-border">

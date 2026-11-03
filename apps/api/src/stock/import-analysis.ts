@@ -33,6 +33,8 @@ export interface CatalogSnapshot {
   /** Shops this user may put stock into. */
   shops: SnapshotShop[];
   activeShopId: number | null;
+  /** Off: the Size column must be blank or Standard, and every product has one variation. */
+  useSizes: boolean;
 }
 
 export type RowAction = 'new_product' | 'new_size' | 'update' | 'unchanged' | 'error';
@@ -197,7 +199,13 @@ export const analyzeCatalogRows = (
     const name = clean(raw.name);
     const skuCell = cleanSku(raw.sku ?? '');
     if (skuCell.error) fail(skuCell.error);
-    const sizeCell = clean(raw.size);
+    let sizeCell = clean(raw.size);
+    if (!snapshot.useSizes) {
+      if (sizeCell && fold(sizeCell) !== 'standard') {
+        fail(`Sizes are turned off. Leave Size blank, or turn on sizes in Settings.`);
+      }
+      sizeCell = '';
+    }
     r.sku = skuCell.sku;
 
     // Numbers. A blank cell keeps the current value, so it is "not given", never zero.

@@ -3,6 +3,7 @@ import { Search, X, AlertCircle, Check } from 'lucide-react';
 import type { StockByShopGridItem, Shop } from '@ar-option/shared-types';
 import type { CartLineItem } from './types';
 import { taka } from '../../lib/money';
+import { sizeLabel, useSizes } from '../../lib/settings';
 
 interface ProductGridProps {
   stockGrid: StockByShopGridItem[];
@@ -32,6 +33,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   isPhone,
   cart = [],
 }) => {
+  const sizesOn = useSizes();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedBrand, setSelectedBrand] = useState<string>('all');
 
@@ -126,7 +128,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by product name, code, SKU or size..."
+            placeholder={sizesOn ? 'Search by product name, code, SKU or size...' : 'Search by product name or code...'}
             className="w-full h-11 pl-9 pr-8 rounded-xl text-xs md:text-sm bg-light-surface-hover dark:bg-dark-surface-hover border border-light-border dark:border-dark-border text-light-text dark:text-dark-text focus:outline-none focus:ring-2 focus:ring-focus-ring"
           />
           {searchQuery && (
@@ -334,15 +336,17 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
                             <span>{inCartQty} in cart</span>
                           </span>
                         )}
-                        <span
-                          className={`text-xs font-extrabold px-1.5 py-0.5 rounded font-mono ${
-                            isSelected
-                              ? 'bg-primary text-on-primary font-black'
-                              : 'bg-primary/10 text-primary dark:text-primary-tint'
-                          }`}
-                        >
-                          {item.size}
-                        </span>
+                        {sizeLabel(item.size, sizesOn) && (
+                          <span
+                            className={`text-xs font-extrabold px-1.5 py-0.5 rounded font-mono ${
+                              isSelected
+                                ? 'bg-primary text-on-primary font-black'
+                                : 'bg-primary/10 text-primary dark:text-primary-tint'
+                            }`}
+                          >
+                            {sizeLabel(item.size, sizesOn)}
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -350,9 +354,11 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
                       {item.product_name}
                     </h3>
 
-                    <div className="text-[10px] font-mono text-light-text-muted mt-1">
-                      SKU: {item.sku}
-                    </div>
+                    {item.sku !== item.product_code && (
+                      <div className="text-[10px] font-mono text-light-text-muted mt-1">
+                        SKU: {item.sku}
+                      </div>
+                    )}
                   </div>
 
                   <div className="pt-2 border-t border-light-border/60 dark:border-dark-border/60 mt-2 flex items-center justify-between">

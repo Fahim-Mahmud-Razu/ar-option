@@ -42,6 +42,8 @@ test.beforeAll(async () => {
   }
   await client.query("DELETE FROM accounts WHERE code LIKE 'CASH_%' OR code LIKE 'CARD_%' OR code LIKE 'BKASH_%'");
   await client.query('DELETE FROM locations WHERE is_system = false');
+  // Written for a business that sells by size.
+  await client.query("UPDATE settings SET value = 'true' WHERE key = 'use_sizes'");
   await client.end();
 });
 
@@ -80,8 +82,8 @@ test('first admin signs up, sells from the browser, and the books balance', asyn
   await page.locator('[data-testid="desktop-nav-pos"]').click();
 
   await page.getByRole('heading', { name: 'Real Panjabi' }).click();
-  await page.getByRole('button', { name: 'Proceed to Checkout' }).click();
-  await page.getByRole('button', { name: /Complete Sale/ }).click();
+  // At desktop width the Cash button completes a counter sale in one tap.
+  await page.getByRole('button', { name: 'Cash ৳1,200.00' }).click();
 
   await expect(page.getByText('RECEIPT #REAL-01-000001')).toBeVisible();
 

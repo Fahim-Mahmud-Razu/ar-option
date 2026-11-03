@@ -28,6 +28,7 @@ import type {
 import { Pagination } from './pagination';
 import { CashInHandCard } from './till/CashInHandCard';
 import { apiFetch } from '../lib/api';
+import { sizeLabel, useSizes } from '../lib/settings';
 
 interface DashboardViewProps {
   apiUrl: string;
@@ -48,6 +49,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   permissions,
   onSelectShop,
 }) => {
+  const sizesOn = useSizes();
   // Location picker dropdown state
   const [locationPickerOpen, setLocationPickerOpen] = useState<boolean>(false);
   // Data state
@@ -1181,7 +1183,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             {sale.items && sale.items.length > 0 ? (
                               sale.items.map((it, idx) => (
                                 <div key={idx} className="text-[11px] truncate">
-                                  <span className="font-semibold">{it.product_name}</span> ({it.size}) × {it.quantity}
+                                  <span className="font-semibold">{it.product_name}</span>{sizeLabel(it.size, sizesOn) && ` (${sizeLabel(it.size, sizesOn)})`} × {it.quantity}
                                 </div>
                               ))
                             ) : (
@@ -1325,7 +1327,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <th className="py-3 px-4">Product Name</th>
                     <th className="py-3 px-4">Brand</th>
                     <th className="py-3 px-4">Category</th>
-                    <th className="py-3 px-4">Size</th>
+                    {sizesOn && <th className="py-3 px-4">Size</th>}
                     <th className="py-3 px-4 text-right">Cost Price (৳)</th>
                     <th className="py-3 px-4 text-right">Selling Price (৳)</th>
                     <th className="py-3 px-4 text-right">Margin %</th>
@@ -1362,11 +1364,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           <td className="py-3 px-4 font-sans text-light-text-muted dark:text-dark-text-muted">
                             {item.category_name || '-'}
                           </td>
-                          <td className="py-3 px-4 font-bold">
-                            <span className="px-2 py-0.5 rounded-md bg-light-surface-hover dark:bg-dark-surface-hover border border-light-border dark:border-dark-border">
-                              {item.size}
-                            </span>
-                          </td>
+                          {sizesOn && (
+                            <td className="py-3 px-4 font-bold">
+                              {sizeLabel(item.size, sizesOn) && (
+                                <span className="px-2 py-0.5 rounded-md bg-light-surface-hover dark:bg-dark-surface-hover border border-light-border dark:border-dark-border">
+                                  {sizeLabel(item.size, sizesOn)}
+                                </span>
+                              )}
+                            </td>
+                          )}
                           <td className="py-3 px-4 text-right">
                             {item.cost_price.toFixed(2)}
                           </td>
@@ -1399,7 +1405,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     })
                   ) : (
                     <tr>
-                      <td colSpan={10} className="py-10 text-center text-light-text-muted dark:text-dark-text-muted font-sans">
+                      <td colSpan={sizesOn ? 10 : 9} className="py-10 text-center text-light-text-muted dark:text-dark-text-muted font-sans">
                         No products match the selected filters.
                       </td>
                     </tr>

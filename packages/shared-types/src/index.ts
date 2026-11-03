@@ -708,3 +708,32 @@ export interface TillOverview {
   shops: TillOverviewRow[];
   total_cash: number;
 }
+
+export interface AppSettings {
+  /** Off: every product has one price, SKU and stock line, and no screen shows a size. */
+  use_sizes: boolean;
+  manual_return_approval_limit: number;
+}
+
+export type ResetLevel = 'transactions' | 'factory';
+
+export interface BackupFile {
+  app: 'ar-option';
+  schema_version: number;
+  created_at: string;
+  tables: Record<string, Record<string, unknown>[]>;
+  /** Last value of each named sequence, so new codes continue after a restore. */
+  sequences: Record<string, number>;
+}
+
+export interface ResetDto {
+  level: ResetLevel;
+  /** Must be RESET for transactions, FACTORY RESET for factory. */
+  confirm: string;
+}
+
+export interface SystemResult {
+  level?: ResetLevel;
+  /** Rows per table removed by a reset, or written by a restore. */
+  counts: Record<string, number>;
+}

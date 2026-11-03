@@ -8,9 +8,10 @@ import { ImportsController } from './imports.controller';
 import { TransfersController } from './transfers.controller';
 import { ShopsModule } from '../shops/shops.module';
 import { LedgerModule } from '../ledger/ledger.module';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
-  imports: [ShopsModule, LedgerModule],
+  imports: [ShopsModule, LedgerModule, SettingsModule],
   controllers: [ProductsController, ImportsController, TransfersController],
   providers: [StockMovementService, ProductsService, ImportsService, TransfersService],
   exports: [StockMovementService, ProductsService, TransfersService],

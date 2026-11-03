@@ -13,6 +13,8 @@ import { CourierModule } from './courier/courier.module';
 import { CashClosingModule } from './cash-closing/cash-closing.module';
 import { TillModule } from './till/till.module';
 import { ContactsModule } from './contacts/contacts.module';
+import { SettingsModule } from './settings/settings.module';
+import { SystemModule } from './system/system.module';
 
 @Module({
   imports: [
@@ -29,6 +31,8 @@ import { ContactsModule } from './contacts/contacts.module';
     CashClosingModule,
     TillModule,
     ContactsModule,
+    SettingsModule,
+    SystemModule,
   ],
   controllers: [HealthController],
 })

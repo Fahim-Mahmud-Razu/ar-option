@@ -277,6 +277,10 @@ INSERT INTO settings (key, value, description)
 VALUES ('manual_return_approval_limit', '2000.00', 'Threshold above which a manual return requires manager returns.approve permission')
 ON CONFLICT (key) DO NOTHING;
 
+INSERT INTO settings (key, value, description)
+VALUES ('use_sizes', 'false', 'When false, each product has one price, SKU and stock line, and sizes are hidden')
+ON CONFLICT (key) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS returns (
   id BIGSERIAL PRIMARY KEY,
   return_number VARCHAR(50) NOT NULL UNIQUE,

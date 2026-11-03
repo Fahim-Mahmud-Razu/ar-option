@@ -20,6 +20,7 @@ import type {
 } from '@ar-option/shared-types';
 import { apiFetch } from '../lib/api';
 import { taka, newClientRef } from '../lib/money';
+import { useSizes } from '../lib/settings';
 import { Sheet } from './Sheet';
 import { PosHeader } from './pos/PosHeader';
 import { CartTable } from './pos/CartTable';
@@ -73,6 +74,7 @@ export const PosView: React.FC<PosViewProps> = ({
 
   // Search & SKU state
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const sizesOn = useSizes();
   const [skuValue, setSkuValue] = useState<string>('');
   const skuInputRef = useRef<HTMLInputElement>(null);
 
@@ -394,6 +396,11 @@ export const PosView: React.FC<PosViewProps> = ({
     );
     if (nameMatches.length === 1) {
       addToCart(nameMatches[0]);
+      setSkuValue('');
+      return;
+    } else if (nameMatches.length > 1 && !sizesOn) {
+      // Several products match. With no sizes there is nothing to pick, so show them in the grid.
+      setSearchQuery(code);
       setSkuValue('');
       return;
     } else if (nameMatches.length > 1) {

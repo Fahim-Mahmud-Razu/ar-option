@@ -114,15 +114,19 @@ export const TEMPLATE_HEADERS = [
   'Add Stock', 'Sub Category', 'Alert Qty', 'Shop',
 ];
 
-export const templateCsv = (): string => {
+/** Sizes off: no Size column, and every sample row is its own product. */
+export const templateCsv = (useSizes = true): string => {
   const sample = [
     ['Classic Crewneck T-Shirt', '', '100001', 'T-Shirts', 'Polo Club', '350', '595', '20', '', '10', ''],
     ['Oxford Long Sleeve Shirt', 'M', '', 'Shirts', 'AR Option', '650', '1100', '15', 'Casual', '5', ''],
     ['Oxford Long Sleeve Shirt', 'L', '', 'Shirts', 'AR Option', '650', '1100', '25', 'Casual', '5', ''],
     ['Slim Fit Denim Pant', '32', 'PANT-SLIM-32', 'Denim', 'Zara Man', '900', '1650', '30', 'Jeans', '8', ''],
   ];
+  const rows = useSizes
+    ? [TEMPLATE_HEADERS, ...sample]
+    : [TEMPLATE_HEADERS, ...sample.filter((r) => r[1] === '' || r[1] === 'M')].map((r) => r.filter((_, i) => i !== 1));
   const quote = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
-  return '﻿' + [TEMPLATE_HEADERS, ...sample].map((r) => r.map(quote).join(',')).join('\r\n') + '\r\n';
+  return '\uFEFF' + rows.map((r) => r.map(quote).join(',')).join('\r\n') + '\r\n';
 };
 
 export const downloadBlob = (content: BlobPart, fileName: string, type: string): void => {

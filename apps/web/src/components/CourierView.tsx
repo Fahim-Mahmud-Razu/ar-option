@@ -21,6 +21,7 @@ import type {
   StockByShopGridItem,
 } from '@ar-option/shared-types';
 import { apiFetch } from '../lib/api';
+import { sizeLabel, useSizes } from '../lib/settings';
 
 interface CourierViewProps {
   activeShop: Shop | null;
@@ -33,6 +34,7 @@ export const CourierView: React.FC<CourierViewProps> = ({
   apiUrl,
   onSettlementCompleted,
 }) => {
+  const sizesOn = useSizes();
   const [activeTab, setActiveTab] = useState<'parcels' | 'settlement' | 'history'>('parcels');
   const [quickFilter, setQuickFilter] = useState<'all' | 'out_now' | 'delivered_unpaid' | 'returned'>('all');
   const [parcels, setParcels] = useState<CourierParcel[]>([]);
@@ -1349,11 +1351,16 @@ export const CourierView: React.FC<CourierViewProps> = ({
                           {item.product_name}
                         </div>
                         <div className="text-[10px] text-light-text-muted dark:text-dark-text-muted font-mono mt-0.5">
-                          Size:{' '}
-                          <span className="font-bold text-rose-500 dark:text-rose-400">
-                            {item.size}
-                          </span>{' '}
-                          | {item.sku}
+                          {sizeLabel(item.size, sizesOn) && (
+                            <>
+                              Size:{' '}
+                              <span className="font-bold text-rose-500 dark:text-rose-400">
+                                {sizeLabel(item.size, sizesOn)}
+                              </span>{' '}
+                              |{' '}
+                            </>
+                          )}
+                          {item.sku}
                         </div>
                       </div>
                       <div className="text-right">
