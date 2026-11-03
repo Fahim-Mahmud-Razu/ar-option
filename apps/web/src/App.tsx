@@ -20,7 +20,6 @@ import { LoginView } from './components/LoginView';
 import { ProductFormView } from './components/products/ProductFormView';
 import { ImportProductsView } from './components/imports/ImportProductsView';
 import { DashboardView } from './components/DashboardView';
-import { DataTableExample } from './components/pagination/DataTableExample';
 import { apiFetch, getToken, setToken, SESSION_EXPIRED_EVENT } from './lib/api';
 import { readStored, writeStored } from './lib/storage';
 import { SettingsProvider } from './lib/settings';
@@ -397,11 +396,6 @@ const AppShell: React.FC<AppShellProps> = ({ session, onSignOut }) => {
                 onRefreshShops={fetchShops}
                 onSignOut={onSignOut}
               />
-            )}
-
-            {/* Hidden fallback for pagination test */}
-            {activeTab === 'pagination-demo' && (
-              <DataTableExample />
             )}
 
             {/* Default Tab: Dashboard */}

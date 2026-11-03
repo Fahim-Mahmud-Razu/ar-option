@@ -13,7 +13,6 @@ import {
   Banknote,
   PanelLeftClose,
   PanelLeftOpen,
-  ListOrdered,
 } from 'lucide-react';
 
 /** Every screen, in menu order. The sidebar, the rail and the phone More menu all use this list. */
@@ -29,7 +28,6 @@ export const NAV_ITEMS = [
   { id: 'users', label: 'User Management', icon: Users },
   { id: 'settings', label: 'Settings', icon: Settings },
   { id: 'ledger', label: 'Financial Statements', icon: Scale },
-  { id: 'pagination-demo', label: 'Pagination Demo', icon: ListOrdered },
 ];
 
 interface SidebarProps {
